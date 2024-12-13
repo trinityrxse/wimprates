@@ -6,7 +6,9 @@ import numericalunits as nu
 from lookup_solar_MSW_table import SolarMSWLookupTable
 import os
 from constants import *
+import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import simpson as simps
 
 class NeutrinoFlavour:
     ElectronNeutrino = "e"
@@ -28,30 +30,11 @@ class FluxMode:
 
 
 
-class Nucleus:
-    """
-    Placeholder for Nucleus class.
-    """
-    def __init__(self, name: str, mass: float, charge: int):
-        self.name = name
-        self.mass = mass
-        self.charge = charge
-
-    def getA(self):
-        return self.mass
-    
-    def getZ(self):
-        return self.charge
-    
-    def getMGeV(self):
-        return self.mass * nu.amu
-
-
 class VNeutrinoCrossSection:
     """
     Abstract base class for neutrino cross-section calculations.
     """
-    def dSigmadEr_cm2_keV(self, recoil_keV: float, neutrino_keV: float, nucleus: Nucleus) -> float:
+    def dSigmadEr_cm2_keV(self, recoil_keV: float, neutrino_keV: float, nucleus) -> float:
         raise NotImplementedError
 
     def SetCouplings(self, neutrinoFlavour: NeutrinoFlavour):
@@ -181,30 +164,75 @@ class NeutrinoFlux:
             for line in f:
                 energy, flux = map(float, line.split())
                 data.append([energy, flux])
-        plt.scatter(energy, flux)
+
+        """
+        #Check it plots reasonable spectrum
+        data = np.array(data)
+        plt.scatter(data[:, 0], data[:, 1], label="Flux Data")
+        plt.xlabel('Energy')
+        plt.ylabel('Flux')
+        plt.legend()
+        plt.savefig('example.png')
+        plt.show()
+        """
         return data
     
-    def flavor_average(self, func: Callable[[float], float], flavour: str) -> float:
+    def flavour_average(self, func: Callable[[float], float], flavour: str) -> float:
+        """
+        Averages a function over neutrino flux, weighted by the abundance of the specified flavour.
+
+        :param func: Function to evaluate at each data point.
+        :param flavour: Neutrino flavour ("e", "mu", "tau" or full names like "ElectronNeutrino").
+        :return: Weighted average value.
+        """
+        # Map full neutrino names to their short forms
+        full_to_short = {
+            "ElectronNeutrino": "e",
+            "MuonNeutrino": "mu",
+            "TauNeutrino": "tau"
+        }
+
+        # Convert full name to short form if necessary
+        if flavour in full_to_short:
+            print(f'Converting {flavour} to its short form.')
+            flavour = full_to_short[flavour]
+
+        # Check if the flavour is valid
         if flavour not in self.flavours:
-            return 0
+            raise ValueError(f"Invalid flavour: {flavour}. Valid options are {list(self.flavours.keys())}")
 
-        abundance = self.flavours[flavour] #TODO why is abundance length one less than pdf 
+        print(f"Using flavour: {flavour}")
 
+        # Get the abundance for the specified flavour
+        abundance = self.flavours[flavour]
+        # Handle line mode
         if self.mode == FluxMode.Line:
             return abundance[0] * func(self.pdf_data[0][0])
 
+        # Compute the total weighted average for non-line mode
         total = 0
         prev_val = func(self.pdf_data[0][0])
 
-        for i in range(0, len(self.pdf_data)-1):
+        for i in range(1, len(self.pdf_data)-1): #TODO find out why i have to do -1 here
             val = func(self.pdf_data[i][0]) * abundance[i]
             total += 0.5 * (val * self.pdf_data[i][1] + prev_val * self.pdf_data[i - 1][1]) * (self.pdf_data[i][0] - self.pdf_data[i - 1][0])
             prev_val = val
 
         return total
 
+    
+    def get_total_flux(self) -> float:
+        """
+        Compute the total flux by integrating flux vs. energy.
+        :return: Total flux (integrated over energy).
+        """
+        data = np.array(self.pdf_data)
+        flux = simps(x=data[:, 0], y=data[:, 1]) 
 
-# Example function to be used with flavor_average
+        return flux # Numerical integration using Simpson's rule
+
+
+# Example function to be used with flavour_average
 def example_function(x: float) -> float:
     return x * 0.1  # Simple scaling function for demonstration
 
@@ -220,7 +248,7 @@ def main():
     print("Neutrino Flavours After Oscillation:", flux.flavours)
 
     # Compute the flavour average for electron neutrino using a sample function
-    avg_flux = flux.flavor_average(example_function, "e")
+    avg_flux = flux.flavour_average(example_function, "e")
     print(f"Average flux for Electron Neutrino: {avg_flux}")
 
 if __name__ == "__main__":

@@ -4,6 +4,10 @@ from dataclasses import dataclass
 import math
 from constants import *
 from neutrino_flux import *
+from nr import *
+from electroweak_er import *
+import numpy as np
+import matplotlib.pyplot as plt
 
 class InteractionType(Enum):
     COHERENT = auto()
@@ -16,28 +20,28 @@ class RecoilType(Enum):
     ER = auto()
 
 @dataclass
-class Target:
-    Z: int
-    mass_fraction: float
+class Target():
+    AMU_TO_GEV = 0.931494
 
-    @staticmethod
-    def create(material: str) -> Optional['Target']:
-        # Placeholder: Create target based on name
-       
-        return Target(Z=ATOMIC_WEIGHT[material], mass_fraction=1.0)  # Example values
+    def __init__(self, name: str, mass: float, charge: int, mass_frac= 1.0):
+        self.name = name
+        self.mass = mass
+        self.charge = charge
+        self.mass_frac = mass_frac
 
+    def get_A(self):
+        return self.mass
+    
+    def get_Z(self):
+        return self.charge
+    
+    def get_m_GeV(self):
+        return self.mass * self.AMU_TO_GEV
+        
 
-class NeutrinoFlux:
-    def get_total_flux_icm2s(self):
-        # Placeholder for total flux computation
-        return 1.0
-
-    def flavor_average(self, rate_function: Callable[[float], float], flavor: str) -> float:
-        # Placeholder for averaging over flavors
-        return 1.0
-
-class CompositeNeutrinoFlux:
+class CompositeNeutrinoFlux():
     def __init__(self):
+        #super().__init__()
         self.components = []
 
     def clear(self):
@@ -45,6 +49,25 @@ class CompositeNeutrinoFlux:
 
     def add_component(self, flux: NeutrinoFlux):
         self.components.append(flux)
+
+
+    def get_total_flux_cm2s(self):
+        total = 0
+        for component in self.components:
+            total += component.get_total_flux()
+
+        return total
+
+    def flavour_average(self, func, flavour):
+        avg_for_flavour = 0
+        print(flavour, 'flv in flv avg composite')
+        for component in self.components:
+            component.apply_oscillation()
+            avg = component.flavour_average(func, flavour)
+            print(avg, 'avg', flavour)
+            avg_for_flavour += avg
+
+        return avg_for_flavour
 
 
 class NeutrinoRate:
@@ -73,32 +96,70 @@ class NeutrinoRate:
         required_neutrino_fluxes = flux_map.get(component, [])
         self.f_flux.clear()
         for key in required_neutrino_fluxes:
-            flux = NeutrinoFlux()  # Placeholder for database access
+            print(key)
+            flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun") 
             self.f_flux.add_component(flux)
 
     def set_interaction_type(self, interaction_type: InteractionType):
         self.f_interaction_type = interaction_type
         if interaction_type == InteractionType.COHERENT:
-            self.f_cross_section = VNeutrinoCrossSection()  # Placeholder
+            self.f_cross_section = NeutrinoCrossSectionCoherentNR()
         elif interaction_type in {InteractionType.EW_FREE_ELECTRON, InteractionType.EW_STEPPING, InteractionType.EW_RRPA}:
-            self.f_cross_section = VNeutrinoCrossSection()  # Placeholder
+            self.f_cross_section = NeutrinoCrossSectionElectroweakER() 
 
     def get_rate(self, recoil_keV: float) -> float:
         m_e = 0.511  # Electron mass in keV
         rate = 0.0
-        for flavor in ["ElectronNeutrino", "MuonNeutrino", "TauNeutrino"]:
+        for flavour in ["ElectronNeutrino", "MuonNeutrino", "TauNeutrino"]:
             rate_contrib = 0.0
             for nucleus in [self.target]:
-                m_nuc = nucleus.Z * 1e6  # Placeholder for nucleus mass
+                m_nuc = nucleus.get_m_GeV() * 1e6 #conversion to keV 
                 E_nu_min = 0.0
                 if self.f_interaction_type == InteractionType.COHERENT:
                     E_nu_min = math.sqrt(m_nuc * recoil_keV / 2)
                 elif self.f_interaction_type in {InteractionType.EW_FREE_ELECTRON, InteractionType.EW_STEPPING, InteractionType.EW_RRPA}:
                     E_nu_min = 0.5 * (recoil_keV + math.sqrt(recoil_keV * (recoil_keV + 2 * m_e)))
-
-                rate_function = lambda E_nu_keV: self.f_cross_section.d_sigma_d_erg_cm2_keV(recoil_keV, E_nu_keV, nucleus) if E_nu_keV >= E_nu_min else 0.0
-                dR_dE_r = self.f_flux.get_total_flux_icm2s() * max(0, self.f_flux.flavor_average(rate_function, flavor))
+                rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour) #if E_nu_keV >= E_nu_keV_min_adjusted else 0.0
+                #rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus) if E_nu_keV >= E_nu_min else 0.0
+                dR_dE_r = self.f_flux.get_total_flux_cm2s() * max(0, self.f_flux.flavour_average(rate_function, flavour))
                 dR_dE_r *= (5.61e35 / m_nuc)
-                rate_contrib += nucleus.mass_fraction * dR_dE_r
+                rate_contrib += nucleus.mass_frac * dR_dE_r
             rate += rate_contrib
         return rate
+
+
+
+
+
+# Main usage
+def main():
+    xe_target = Target("Xe", 131.29, 54)
+
+    # Define interaction type (e.g., COHERENT)
+    interaction_type = InteractionType.COHERENT
+
+    # Required flux component (e.g., "8B" neutrinos from the sun)
+    required_fluxes = "8B"
+
+    # Initialise the neutrino rate calculation for xe target
+    neutrino_rate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
+
+    # Calculate the neutrino scattering rate for a specific recoil energy (in keV)
+    rates=[]
+    recoil_energy_keV = np.linspace(1000, 100000, 100)  # Example recoil energy
+    for recoil_E in recoil_energy_keV:
+        rates.append(neutrino_rate.get_rate(recoil_E))
+
+    plt.scatter(recoil_energy_keV, rates)
+    plt.savefig("example_recoil_spec")
+    plt.show()
+
+    # NOTE this DOESNT work - it gives you the same rate at all energies because i havent fixed the cross section function yet
+
+    # Output the computed rate
+    print(f"Neutrino interaction rate for {recoil_energy_keV[0]} keV recoil on Xe: {rates[0]:.3e} events/kg/day")
+
+
+if __name__ == "__main__":
+    main()
+

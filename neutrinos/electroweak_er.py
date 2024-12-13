@@ -31,7 +31,10 @@ class NeutrinoCrossSectionElectroweakER(VNeutrinoCrossSection):
         self.fIsAntiNeutrino = False
 
     def dSigmadEr_cm2_keV(self, E_recoil, E_neutrino, nucleus):
-        Z_nuc = nucleus.GetZ()
+        
+        A_nuc = nucleus.get_A() #mass number
+        Z_nuc = nucleus.get_Z() #atomic number
+        m_nuc = nucleus.get_m_GeV() * 1e6 # actual mass, conversion in keV
 
         # Constants
         Gf = DMCalcConstants.Gf

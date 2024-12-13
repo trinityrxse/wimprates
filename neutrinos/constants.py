@@ -13,6 +13,8 @@ class DMCalcConstants:
     max_distance_lookup_km = 100000
     averaging_vacuum = 1
     Rsun = 696340  # Radius of the Sun in km
+    Gf = 1.166e-17 #Fermi const in units keV^-2
+ 
 
     @staticmethod
     def get_dmcalc_path():
