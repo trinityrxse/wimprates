@@ -6,6 +6,7 @@ import numericalunits as nu
 from lookup_solar_MSW_table import SolarMSWLookupTable
 import os
 from constants import *
+import matplotlib.pyplot as plt
 
 class NeutrinoFlavour:
     ElectronNeutrino = "e"
@@ -175,25 +176,27 @@ class NeutrinoFlux:
 
     def pdf_data(self):
         data = []
-        file = DMCalcConstants.GetDMCalcPath() + "/DataBase/NeutrinoFlux/Data/8B.txt"
+        file = DMCalcConstants.get_dmcalc_path() + f"/DataBase/NeutrinoFlux/data/{self.name}.txt"
         with open(file, 'r') as f:
             for line in f:
                 energy, flux = map(float, line.split())
                 data.append([energy, flux])
+        plt.scatter(energy, flux)
         return data
     
     def flavor_average(self, func: Callable[[float], float], flavour: str) -> float:
         if flavour not in self.flavours:
             return 0
 
-        abundance = self.flavours[flavour]
+        abundance = self.flavours[flavour] #TODO why is abundance length one less than pdf 
+
         if self.mode == FluxMode.Line:
             return abundance[0] * func(self.pdf_data[0][0])
 
         total = 0
         prev_val = func(self.pdf_data[0][0])
 
-        for i in range(1, len(self.pdf_data)):
+        for i in range(0, len(self.pdf_data)-1):
             val = func(self.pdf_data[i][0]) * abundance[i]
             total += 0.5 * (val * self.pdf_data[i][1] + prev_val * self.pdf_data[i - 1][1]) * (self.pdf_data[i][0] - self.pdf_data[i - 1][0])
             prev_val = val
@@ -208,7 +211,7 @@ def example_function(x: float) -> float:
 # Main usage
 def main():
     # Create a neutrino flux object
-    flux = NeutrinoFlux(name="Neutrino_Solar", scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
+    flux = NeutrinoFlux(name="8B", scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
 
     # Apply oscillations (this updates the flavours)
     flux.apply_oscillation()
