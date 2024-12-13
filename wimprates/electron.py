@@ -65,6 +65,8 @@ def binding_es_for_dme(n, l):
 
     Note these are different from e.g. Ibe et al. 2017!
     """
+    #TODO expand scope, make this work for 
+    # This only does Xe and I want a broader scope for DMCalc integration 
 
     return {'4s': 213.8,
             '4p': 163.5,
