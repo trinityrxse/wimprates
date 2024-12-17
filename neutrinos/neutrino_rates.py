@@ -8,16 +8,9 @@ from nr import *
 from electroweak_er import *
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import simpson as simps
 
-class InteractionType(Enum):
-    COHERENT = auto()
-    EW_FREE_ELECTRON = auto()
-    EW_STEPPING = auto()
-    EW_RRPA = auto()
 
-class RecoilType(Enum):
-    NR = auto()
-    ER = auto()
 
 @dataclass
 class Target():
@@ -60,11 +53,9 @@ class CompositeNeutrinoFlux():
 
     def flavour_average(self, func, flavour):
         avg_for_flavour = 0
-        print(flavour, 'flv in flv avg composite')
         for component in self.components:
             component.apply_oscillation()
             avg = component.flavour_average(func, flavour)
-            print(avg, 'avg', flavour)
             avg_for_flavour += avg
 
         return avg_for_flavour
@@ -97,7 +88,9 @@ class NeutrinoRate:
         self.f_flux.clear()
         for key in required_neutrino_fluxes:
             print(key)
-            flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun") 
+            flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun",
+                               # "solar_vac_sun"
+                                ) 
             self.f_flux.add_component(flux)
 
     def set_interaction_type(self, interaction_type: InteractionType):
@@ -105,23 +98,33 @@ class NeutrinoRate:
         if interaction_type == InteractionType.COHERENT:
             self.f_cross_section = NeutrinoCrossSectionCoherentNR()
         elif interaction_type in {InteractionType.EW_FREE_ELECTRON, InteractionType.EW_STEPPING, InteractionType.EW_RRPA}:
-            self.f_cross_section = NeutrinoCrossSectionElectroweakER() 
+            self.f_cross_section = NeutrinoCrossSectionElectroweakER(interaction_type) 
 
     def get_rate(self, recoil_keV: float) -> float:
         m_e = 0.511  # Electron mass in keV
         rate = 0.0
+
         for flavour in ["ElectronNeutrino", "MuonNeutrino", "TauNeutrino"]:
             rate_contrib = 0.0
             for nucleus in [self.target]:
                 m_nuc = nucleus.get_m_GeV() * 1e6 #conversion to keV 
-                E_nu_min = 0.0
+
                 if self.f_interaction_type == InteractionType.COHERENT:
-                    E_nu_min = math.sqrt(m_nuc * recoil_keV / 2)
+                    if recoil_keV <= 0 or m_nuc <= 0:
+                        raise ValueError("E_recoil and m_nuc must be positive values.")
+                    term = 1 + (2 * m_nuc / recoil_keV)
+                    E_nu_min = 0.5 * recoil_keV * (1 + np.sqrt(term))
+    
                 elif self.f_interaction_type in {InteractionType.EW_FREE_ELECTRON, InteractionType.EW_STEPPING, InteractionType.EW_RRPA}:
                     E_nu_min = 0.5 * (recoil_keV + math.sqrt(recoil_keV * (recoil_keV + 2 * m_e)))
-                rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour) #if E_nu_keV >= E_nu_keV_min_adjusted else 0.0
-                #rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus) if E_nu_keV >= E_nu_min else 0.0
+                
+                # averages cross section over neutrino flux, weighted based on flavour
+                rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour) if E_nu_keV > E_nu_min else 0
+                        
                 dR_dE_r = self.f_flux.get_total_flux_cm2s() * max(0, self.f_flux.flavour_average(rate_function, flavour))
+                factor = (5.61e35 / m_nuc) #TODO probably is wrong
+  
+
                 dR_dE_r *= (5.61e35 / m_nuc)
                 rate_contrib += nucleus.mass_frac * dR_dE_r
             rate += rate_contrib
@@ -136,7 +139,7 @@ def main():
     xe_target = Target("Xe", 131.29, 54)
 
     # Define interaction type (e.g., COHERENT)
-    interaction_type = InteractionType.COHERENT
+    interaction_type = InteractionType.EW_RRPA
 
     # Required flux component (e.g., "8B" neutrinos from the sun)
     required_fluxes = "8B"
@@ -146,15 +149,31 @@ def main():
 
     # Calculate the neutrino scattering rate for a specific recoil energy (in keV)
     rates=[]
-    recoil_energy_keV = np.linspace(1000, 100000, 100)  # Example recoil energy
-    for recoil_E in recoil_energy_keV:
-        rates.append(neutrino_rate.get_rate(recoil_E))
+    recoil_energy_keV = np.linspace(0.1, 1, 10)  # Example recoil energy
 
-    plt.scatter(recoil_energy_keV, rates)
-    plt.savefig("example_recoil_spec")
+    num_points = 100
+    x_uniform = np.linspace(0.000001, 1, num_points)  # Uniformly distributed points in [0, 1]
+    x_concentrated = x_uniform**2  # Squish points toward 0 (use x**n for more concentration)
+    #recoil_energy_keV = x_concentrated * 80  # 
+    for recoil_E in recoil_energy_keV:
+        r = neutrino_rate.get_rate(recoil_E)
+        rates.append(r)
+    
+    diff_rate = np.array(rates)* 365 * 60 * 60 * 24 * 1000 / (1e-38)
+
+    plt.scatter(recoil_energy_keV, diff_rate)
+    
+    plt.xlabel('recoil energy [keV]')
+    plt.ylabel(f'rate [events/tonne/year/keV]e^{-38} ')
+    plt.savefig("example_recoil_spec.png")
     plt.show()
 
-    # NOTE this DOESNT work - it gives you the same rate at all energies because i havent fixed the cross section function yet
+    diff_rate = np.array(rates)* 365 * 60 * 60 * 24 * 1000 #/ (1e-38)
+
+    total_rate = simps(y=diff_rate, x=recoil_energy_keV)
+
+    print(f"Total Event Rate (events/tonne/year): {total_rate}")
+    # NOTE this DOESNT work - it gives you a very funky sin/cos graph
 
     # Output the computed rate
     print(f"Neutrino interaction rate for {recoil_energy_keV[0]} keV recoil on Xe: {rates[0]:.3e} events/kg/day")

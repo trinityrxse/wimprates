@@ -82,7 +82,6 @@ class AtomicBinding:
                 binding_energy = 0.001 * atom_shell_bes[j]  # Convert to keV
                 if recoil_keV >= binding_energy:
                     n_scattered_elec += shell_occupancy
-
         return n_scattered_elec
 
     def get_rrpa_scaling(self, neutrino_flavour: NeutrinoFlavour, recoil_keV: float) -> float:
@@ -152,8 +151,8 @@ class AtomicShells:
 # Example usage
 if __name__ == "__main__":
     binding = AtomicBinding(is_rrpa=True, atomic_number=54)
-    active_electrons = binding.active_electrons_stepping(15.0)  # Example recoil energy in keV
-    scaling = binding.get_rrpa_scaling("ElectronNeutrino", 15.0)
+    active_electrons = binding.active_electrons_stepping(.001)  # Example recoil energy in keV
+    scaling = binding.get_rrpa_scaling("ElectronNeutrino", .001)
 
     print(f"Active Electrons: {active_electrons}")
     print(f"RRPA Scaling Factor: {scaling}")

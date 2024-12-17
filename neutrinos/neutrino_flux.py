@@ -1,4 +1,5 @@
 import math
+from enum import Enum, auto
 from collections import defaultdict
 from functools import partial
 from typing import Callable, Dict, List, Tuple, Union
@@ -9,6 +10,16 @@ from constants import *
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import simpson as simps
+
+class InteractionType(Enum):
+    COHERENT = auto()
+    EW_FREE_ELECTRON = auto()
+    EW_STEPPING = auto()
+    EW_RRPA = auto()
+
+class RecoilType(Enum):
+    NR = auto()
+    ER = auto()
 
 class NeutrinoFlavour:
     ElectronNeutrino = "e"
@@ -96,27 +107,28 @@ class NeutrinoFlux:
 
         elif self.oscillation_mode == OscillationMode.MatterSunProduction:
             # This part is specific and requires SolarMSWLookupTable
-            # Initialize lookup table or load data from a file if it exists
+            # Initialise lookup table or load data from a file if it exists
             lookup_table_ee = DMCalcConstants.get_dmcalc_path() + "/DataBase/NeutrinoOscillations/lookup_table_solar_MSW_ee.txt"
             lookup_table_emu = DMCalcConstants.get_dmcalc_path() + "/DataBase/NeutrinoOscillations/lookup_table_solar_MSW_emu.txt"
 
             if not os.path.exists(lookup_table_ee) or not os.path.exists(lookup_table_emu):
                 print("SolarMSWLookupTable generation...")
-                lookup = SolarMSWLookupTable(DMCalcConstants.get_dmcalc_path())
+                lookup = SolarMSWLookupTable(0.01e-6, 1000e-6, 1, 1000)
                 lookup.output()
                 print("New SolarMSWLookupTable files have been created.")
             
             # Now using the lookup table
-            lookup = SolarMSWLookupTable(DMCalcConstants.get_dmcalc_path())
+            #lookup = SolarMSWLookupTable(min_energy_GeV, max_energy_GeV, min_distance_km, max_distance_km)
+            lookup = SolarMSWLookupTable(0.01e-6, 1000e-6, 1, 1000)
             production_points = DMCalcConstants.get_dmcalc_path() + "/DataBase/NeutrinoFlux/production_points/" + self.name + ".txt"
-
+            print(production_points)
             p_ee_vec = []
             p_emu_vec = []
             p_etau_vec = []
 
             # Handle the energy lookup (keV to GeV conversion)
-            if len(self.pdf_data()) == 1:
-                energy = self.pdf_data()[0][0] * 1e-3  # Convert to GeV
+            if len(self.pdf_data) == 1:
+                energy = self.pdf_data[0][0] * 1e-3  # Convert to GeV #TODO check
                 with open(production_points, "r") as file:
                         values = []
                         for line in file:
@@ -126,6 +138,7 @@ class NeutrinoFlux:
                 ee_prod_sum = 0.0
                 emu_prod_sum = 0.0
                 for distance, fraction in values:
+                    print(distance)
                     fraction_sum += fraction
                     ee_prod_sum += lookup.get_value(energy, distance * DMCalcConstants.Rsun, 1) * fraction
                     emu_prod_sum += lookup.get_value(energy, distance * DMCalcConstants.Rsun, 2) * fraction
@@ -133,8 +146,8 @@ class NeutrinoFlux:
                 p_emu_vec.append(emu_prod_sum / fraction_sum)
                 p_etau_vec.append(1.0 - (ee_prod_sum / fraction_sum) - (emu_prod_sum / fraction_sum))
             else:
-                for i in range(len(self.pdf_data()) - 1):
-                    energy_mid = 0.5e-3 * (self.pdf_data()[i][0] + self.pdf_data()[i + 1][0])
+                for i in range(len(self.pdf_data) - 1):
+                    energy_mid = 0.5e-3 * (self.pdf_data[i][0] + self.pdf_data[i + 1][0])
                     with open(production_points, "r") as file:
                         values = []
                         for line in file:
@@ -194,28 +207,25 @@ class NeutrinoFlux:
 
         # Convert full name to short form if necessary
         if flavour in full_to_short:
-            print(f'Converting {flavour} to its short form.')
             flavour = full_to_short[flavour]
 
         # Check if the flavour is valid
         if flavour not in self.flavours:
             raise ValueError(f"Invalid flavour: {flavour}. Valid options are {list(self.flavours.keys())}")
 
-        print(f"Using flavour: {flavour}")
-
         # Get the abundance for the specified flavour
         abundance = self.flavours[flavour]
         # Handle line mode
         if self.mode == FluxMode.Line:
-            return abundance[0] * func(self.pdf_data[0][0])
+            return abundance[0] * func(self.pdf_data[0][0] *1e6)
 
         # Compute the total weighted average for non-line mode
         total = 0
-        prev_val = func(self.pdf_data[0][0])
+        prev_val = func(self.pdf_data[0][0]*1e6)
 
         for i in range(1, len(self.pdf_data)-1): #TODO find out why i have to do -1 here
-            val = func(self.pdf_data[i][0]) * abundance[i]
-            total += 0.5 * (val * self.pdf_data[i][1] + prev_val * self.pdf_data[i - 1][1]) * (self.pdf_data[i][0] - self.pdf_data[i - 1][0])
+            val = func(self.pdf_data[i][0]*1e6) * abundance[i]
+            total += 0.5 * (val * self.pdf_data[i][1] + prev_val * self.pdf_data[i - 1][1]) * (self.pdf_data[i][0]*1e6 - self.pdf_data[i - 1][0]*1e6)
             prev_val = val
 
         return total
@@ -240,7 +250,8 @@ def example_function(x: float) -> float:
 def main():
     # Create a neutrino flux object
     flux = NeutrinoFlux(name="8B", scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
-
+    #NOTE solar_matter_sun mode not fully implemented
+    
     # Apply oscillations (this updates the flavours)
     flux.apply_oscillation()
 
@@ -250,6 +261,7 @@ def main():
     # Compute the flavour average for electron neutrino using a sample function
     avg_flux = flux.flavour_average(example_function, "e")
     print(f"Average flux for Electron Neutrino: {avg_flux}")
+
 
 if __name__ == "__main__":
     main()
