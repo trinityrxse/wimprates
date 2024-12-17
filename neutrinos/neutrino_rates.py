@@ -135,7 +135,7 @@ class NeutrinoRate:
 
 
 # Main usage
-def main():
+def main2():
     xe_target = Target("Xe", 131.29, 54)
 
     # Define interaction type (e.g., COHERENT)
@@ -178,6 +178,87 @@ def main():
     # Output the computed rate
     print(f"Neutrino interaction rate for {recoil_energy_keV[0]} keV recoil on Xe: {rates[0]:.3e} events/kg/day")
 
+
+
+
+def test_flux():
+    plt.figure(figsize = (12,8))
+    energies =np.logspace(-2, 7, 500)
+
+    xe_target = Target("Xe", 131.29, 54)
+
+    # Define interaction type (e.g., COHERENT)
+    interaction_type = InteractionType.EW_RRPA
+
+    # Required flux component (e.g., "8B" neutrinos from the sun)
+    required_fluxes = "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be", "7Be_PP_CNO"
+
+    # Initialise the neutrino rate calculation for xe target
+    neutrino_rate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
+
+
+    for name in required_fluxes:
+        neutrino_rate.set_required_fluxes(name)
+
+        flux = neutrino_rate.f_flux.components[0]
+
+        flux_pdf = np.array(flux.pdf_data)
+
+        energy, amp = flux_pdf[:,0], flux_pdf[:,1]
+
+        if (len(flux_pdf) == 1):
+            plt.plot([ energy[0]*1e-3, energy[0]*1e-3], [0, 1e5], label = name, ls = '--')
+        else:
+            plt.loglog((energies*1e-3)[:len(amp)], (np.array(amp)*1e3)[:500], label = name)
+    #     plt.loglog(er, rate, label = name)
+    #plt.xlim(1e-3, 10000)
+    #plt.ylim(1, 1e12)
+    plt.xlabel('Neutrino Energy [MeV]', fontsize = 16)
+    plt.legend()
+    plt.ylabel('Flux [1/cm$^2$/s/MeV]', fontsize = 16)
+    plt.title('Neutrino Flux', fontsize = 20)
+    plt.savefig('NuFluxes_B8.pdf')
+    plt.show()
+
+
+def main():
+    xe_target = Target("Xe", 131.29, 54)
+
+    # Define interaction type (e.g., COHERENT)
+    interaction_type = InteractionType.COHERENT
+
+    # Required flux component (e.g., "8B" neutrinos from the sun)
+    required_fluxes = "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be", "7Be_PP_CNO"
+
+    # Initialise the neutrino rate calculation for xe target
+    nurate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
+    plt.figure(figsize = (12,8))
+
+    for name in required_fluxes:
+        nurate.set_required_fluxes(name)
+
+        total = 0
+        er = np.logspace(-1, 2, 1000)
+        rates = []
+        for e in er:
+            rate = nurate.get_rate(e)
+            rates.append(rate)
+            total += nurate.f_flux.get_total_flux_cm2s()
+        print('Total Flux: ', total, name)
+
+        plt.loglog(er, rates, label = name)
+
+    
+    plt.xlabel('Recoil Energy [keV]', fontsize = 16)
+    plt.legend()
+    plt.ylabel('Rate [Events /ton/year/keV]', fontsize = 16)
+    plt.title('Neutrino Recoil Rates (NR)', fontsize = 20)
+    plt.grid(which = 'both')
+    plt.savefig("all.png")
+    plt.show()
+
+
+    test_flux()
 
 if __name__ == "__main__":
     main()
