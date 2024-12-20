@@ -45,9 +45,10 @@ class CompositeNeutrinoFlux():
 
 
     def get_total_flux_cm2s(self):
+        #input in MeV
         total = 0
         for component in self.components:
-            total += component.get_total_flux()
+            total += component.get_total_flux() # Result is in MeV/cm^2
 
         return total
 
@@ -120,14 +121,17 @@ class NeutrinoRate:
                 
                 # averages cross section over neutrino flux, weighted based on flavour
                 rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour) if E_nu_keV > E_nu_min else 0
-                        
-                dR_dE_r = self.f_flux.get_total_flux_cm2s() * max(0, self.f_flux.flavour_average(rate_function, flavour))
+                        # MeV/cm^2 * conversion to keV * weighted average cross section in cm2 keV
+                dR_dE_r = self.f_flux.get_total_flux_cm2s() * 1e3 * max(0, self.f_flux.flavour_average(rate_function, flavour))
                 factor = (5.61e35 / m_nuc) #TODO probably is wrong
-  
+            
 
                 dR_dE_r *= (5.61e35 / m_nuc)
                 rate_contrib += nucleus.mass_frac * dR_dE_r
             rate += rate_contrib
+        #if self.f_interaction_type == InteractionType.COHERENT:
+        #    self.f_cross_section.helm_form_factor_plot(recoil_keV, self.target)
+
         return rate
 
 
@@ -139,7 +143,7 @@ def main2():
     xe_target = Target("Xe", 131.29, 54)
 
     # Define interaction type (e.g., COHERENT)
-    interaction_type = InteractionType.EW_RRPA
+    interaction_type = InteractionType.COHERENT
 
     # Required flux component (e.g., "8B" neutrinos from the sun)
     required_fluxes = "8B"
@@ -149,11 +153,10 @@ def main2():
 
     # Calculate the neutrino scattering rate for a specific recoil energy (in keV)
     rates=[]
-    recoil_energy_keV = np.linspace(0.1, 1, 10)  # Example recoil energy
+    recoil_energy_keV = np.logspace(-4, 2, 1000)  # Example recoil energy
 
-    num_points = 100
-    x_uniform = np.linspace(0.000001, 1, num_points)  # Uniformly distributed points in [0, 1]
-    x_concentrated = x_uniform**2  # Squish points toward 0 (use x**n for more concentration)
+    #x_uniform = np.linspace(0.000001, 1, 1000)  # Uniformly distributed points in [0, 1]
+    #x_concentrated = x_uniform**2  # Squish points toward 0 (use x**n for more concentration)
     #recoil_energy_keV = x_concentrated * 80  # 
     for recoil_E in recoil_energy_keV:
         r = neutrino_rate.get_rate(recoil_E)
@@ -161,10 +164,12 @@ def main2():
     
     diff_rate = np.array(rates)* 365 * 60 * 60 * 24 * 1000 / (1e-38)
 
-    plt.scatter(recoil_energy_keV, diff_rate)
+    plt.clf()
+    plt.loglog(recoil_energy_keV, diff_rate)
     
     plt.xlabel('recoil energy [keV]')
     plt.ylabel(f'rate [events/tonne/year/keV]e^{-38} ')
+    plt.xlim(0, 11)
     plt.savefig("example_recoil_spec.png")
     plt.show()
 
@@ -183,12 +188,12 @@ def main2():
 
 def test_flux():
     plt.figure(figsize = (12,8))
-    energies =np.logspace(-2, 7, 500)
+    energies =np.logspace(-2, 4, 500)
 
     xe_target = Target("Xe", 131.29, 54)
 
     # Define interaction type (e.g., COHERENT)
-    interaction_type = InteractionType.EW_RRPA
+    interaction_type = InteractionType.COHERENT
 
     # Required flux component (e.g., "8B" neutrinos from the sun)
     required_fluxes = "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be", "7Be_PP_CNO"
@@ -238,7 +243,7 @@ def main():
         nurate.set_required_fluxes(name)
 
         total = 0
-        er = np.logspace(-1, 2, 1000)
+        er = np.logspace(-4, 2, 1000)
         rates = []
         for e in er:
             rate = nurate.get_rate(e)
