@@ -45,16 +45,17 @@ class CompositeNeutrinoFlux():
 
 
     def get_total_flux_cm2s(self):
-        #input in MeV
+        #for if the flux we want has more than one component (more than one file)
         total = 0
         for component in self.components:
-            total += component.get_total_flux() # Result is in MeV/cm^2
+            total += component.get_total_flux() # Result is in keV/cm^2
 
-        return total
+        return total #this is the flux for all of the components loaded
 
     def flavour_average(self, func, flavour):
         avg_for_flavour = 0
         for component in self.components:
+            component.oscillation_mode == OscillationMode.NoneMode
             component.apply_oscillation()
             avg = component.flavour_average(func, flavour)
             avg_for_flavour += avg
@@ -118,19 +119,19 @@ class NeutrinoRate:
     
                 elif self.f_interaction_type in {InteractionType.EW_FREE_ELECTRON, InteractionType.EW_STEPPING, InteractionType.EW_RRPA}:
                     E_nu_min = 0.5 * (recoil_keV + math.sqrt(recoil_keV * (recoil_keV + 2 * m_e)))
-                
+
                 # averages cross section over neutrino flux, weighted based on flavour
                 rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour) if E_nu_keV > E_nu_min else 0
-                        # MeV/cm^2 * conversion to keV * weighted average cross section in cm2 keV
-                dR_dE_r = self.f_flux.get_total_flux_cm2s() * 1e3 * max(0, self.f_flux.flavour_average(rate_function, flavour))
-                factor = (5.61e35 / m_nuc) #TODO probably is wrong
-            
-
-                dR_dE_r *= (5.61e35 / m_nuc)
+                        # keV/cm^2 [* conversion to keV *] weighted average cross section in cm2 keV
+                dR_dE_r = self.f_flux.get_total_flux_cm2s() * max(0, self.f_flux.flavour_average(rate_function, flavour))
+                dR_dE_r *= ((5.61e35 * 3.154e7)/ (m_nuc * 3.8292956500956284e-23)) #should give rate in per year per tonne
+                #TODO check with Rob why is this in your code? what does 5.61e35 do? 
                 rate_contrib += nucleus.mass_frac * dR_dE_r
+
+                #print(flavour, rate_contrib)
             rate += rate_contrib
         #if self.f_interaction_type == InteractionType.COHERENT:
-        #    self.f_cross_section.helm_form_factor_plot(recoil_keV, self.target)
+         #   self.f_cross_section.form_factor_plot(self.target)
 
         return rate
 
@@ -153,16 +154,15 @@ def main2():
 
     # Calculate the neutrino scattering rate for a specific recoil energy (in keV)
     rates=[]
-    recoil_energy_keV = np.logspace(-4, 2, 1000)  # Example recoil energy
+    rates_per_keV=[]
+    recoil_energy_keV = np.logspace(-3, 2, 1000)  # Example recoil energy
 
-    #x_uniform = np.linspace(0.000001, 1, 1000)  # Uniformly distributed points in [0, 1]
-    #x_concentrated = x_uniform**2  # Squish points toward 0 (use x**n for more concentration)
-    #recoil_energy_keV = x_concentrated * 80  # 
     for recoil_E in recoil_energy_keV:
         r = neutrino_rate.get_rate(recoil_E)
         rates.append(r)
+        rates_per_keV.append(r/recoil_E)
     
-    diff_rate = np.array(rates)* 365 * 60 * 60 * 24 * 1000 / (1e-38)
+    diff_rate = np.array(rates) / (1e-38)
 
     plt.clf()
     plt.loglog(recoil_energy_keV, diff_rate)
@@ -173,15 +173,11 @@ def main2():
     plt.savefig("example_recoil_spec.png")
     plt.show()
 
-    diff_rate = np.array(rates)* 365 * 60 * 60 * 24 * 1000 #/ (1e-38)
 
-    total_rate = simps(y=diff_rate, x=recoil_energy_keV)
+    total_rate = simps(y=rates_per_keV, x=recoil_energy_keV)
 
     print(f"Total Event Rate (events/tonne/year): {total_rate}")
     # NOTE this DOESNT work - it gives you a very funky sin/cos graph
-
-    # Output the computed rate
-    print(f"Neutrino interaction rate for {recoil_energy_keV[0]} keV recoil on Xe: {rates[0]:.3e} events/kg/day")
 
 
 
@@ -209,12 +205,12 @@ def test_flux():
 
         flux_pdf = np.array(flux.pdf_data)
 
-        energy, amp = flux_pdf[:,0], flux_pdf[:,1]
+        energy, amp = flux_pdf[:,0]*1e-3, flux_pdf[:,1]
 
         if (len(flux_pdf) == 1):
-            plt.plot([ energy[0]*1e-3, energy[0]*1e-3], [0, 1e5], label = name, ls = '--')
+            plt.plot([energy[0], energy[0]], [0, 1e5], label = name, ls = '--')
         else:
-            plt.loglog((energies*1e-3)[:len(amp)], (np.array(amp)*1e3)[:500], label = name)
+            plt.loglog((energies)[:len(amp)], (np.array(amp)*1e3)[:500], label = name)
     #     plt.loglog(er, rate, label = name)
     #plt.xlim(1e-3, 10000)
     #plt.ylim(1, 1e12)
@@ -243,13 +239,17 @@ def main():
         nurate.set_required_fluxes(name)
 
         total = 0
-        er = np.logspace(-4, 2, 1000)
+        er = np.logspace(-2, 2, 1000)
         rates = []
+        rates_per_keV = []
         for e in er:
             rate = nurate.get_rate(e)
             rates.append(rate)
+            rates_per_keV.append(rate/e)
             total += nurate.f_flux.get_total_flux_cm2s()
         print('Total Flux: ', total, name)
+
+        #diff_rate = np.array(rates_per_keV) #TODO how do i get it per keV??
 
         plt.loglog(er, rates, label = name)
 

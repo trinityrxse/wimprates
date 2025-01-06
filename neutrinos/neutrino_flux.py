@@ -214,22 +214,22 @@ class NeutrinoFlux:
             raise ValueError(f"Invalid flavour: {flavour}. Valid options are {list(self.flavours.keys())}")
 
         # Get the abundance for the specified flavour
-        # Note flux units in MeV -- convert keV to MeV
+        # Note flux units in MeV -- convert energy in keV to MeV
         abundance = self.flavours[flavour]
         # Handle line mode
         if self.mode == FluxMode.Line:
-            return abundance[0] * func(self.pdf_data[0][0] *1e3)
+            return abundance[0] * func(self.pdf_data[0][0])
 
         # Compute the total weighted average for non-line mode
         total = 0
-        prev_val = func(self.pdf_data[0][0]*1e3)
+        prev_val = func(self.pdf_data[0][0])
 
-        for i in range(1, len(self.pdf_data)-1): #TODO find out why i have to do -1 here
+        for i in range(1, len(self.pdf_data)-1): 
             val = func(self.pdf_data[i][0]*1e3) * abundance[i]
-            total += 0.5 * (val * self.pdf_data[i][1] + prev_val * self.pdf_data[i - 1][1]) * (self.pdf_data[i][0]*1e3 - self.pdf_data[i - 1][0]*1e3)
+            total += 0.5 * (val * self.pdf_data[i][1]*1e3 + prev_val * self.pdf_data[i - 1][1]*1e3) * (self.pdf_data[i][0] - self.pdf_data[i - 1][0])
             prev_val = val
 
-        return total
+        return total #in MeV units
 
     
     def get_total_flux(self) -> float:
@@ -238,9 +238,10 @@ class NeutrinoFlux:
         :return: Total flux (integrated over energy).
         """
         data = np.array(self.pdf_data)
-        flux = simps(x=data[:, 0]*1e-3, y=data[:, 1]) #NOTE this might be off by a factor
+        #assuming first column (energy) in keV and second (flux) in MeV
+        flux = simps(x=data[:, 0], y=data[:, 1]*1e3) #NOTE this might be off by a factor
 
-        # Result is in MeV/cm^2
+        # Result is in keV/cm^2
         return flux # Numerical integration using Simpson's rule
 
 

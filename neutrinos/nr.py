@@ -1,6 +1,7 @@
 from typing import Optional
 from atomic_binding import *
 from neutrino_flux import *
+from formfactorcheck import *
 import numpy as np
 import wimprates as wr
 from scipy.special import jn
@@ -23,18 +24,17 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         :param nucleus: target nucleus
         :return: value of the cross-section in cm^2.keV^-1
         """
-        # Placeholder for actual cross-section calculation
 
         self.set_couplings(flavour)
 
         A_nuc = nucleus.get_A()  # mass number
         Z_nuc = nucleus.get_Z()  # atomic number
-        m_nuc = nucleus.get_m_GeV() * 1e6  # actual mass in keV
+        m_nuc = nucleus.get_m_GeV() #in GeV still * 1e6  # actual mass in keV
 
         Gf = DMCalcConstants.Gf  # Fermi constant in keV^-2
 
         # Ensure helm_form_factor_squared returns a dimensionless result
-        Fsquared = helm_form_factor_squared2(E_recoil, A_nuc, m_nuc)
+        Fsquared = helm_form_factor(E_recoil, A_nuc, m_nuc) #Er_keV, A, mass_GeV
 
         # Temporary debug fix for Fsquared
         if Fsquared is None or Fsquared <= 0:  # Handle any invalid values
@@ -70,29 +70,53 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         elif neutrinoFlavour == "TauNeutrino":
             self.fCoupling_v_proton = 0.025618721492906504
             self.fCoupling_v_neutron = -0.511669383346544
+
+    def form_factor_plot(self, nucleus):
+        a = nucleus.get_A()
+        mass_GeV = nucleus.get_m_GeV()
+
+        erec_keV = np.logspace(-1, 3, 1000)
+        data = []
+        for erec in erec_keV:
+            form_factor_squared = helm_form_factor(erec, a, mass_GeV)**2
+
+            data.append([erec, form_factor_squared])
+        
+        data = np.array(data)
+        plt.scatter(data[:,0], data[:,1])
+        plt.yscale("log") 
+        plt.xlabel("T [keV]")
+        plt.ylabel("F^2")
+        plt.savefig('ff.png')
+        plt.show()
     
-    def helm_form_factor_plot(self, erec_keV, nucleus):
+            
+
+    
+"""    def helm_form_factor_plot(self, erec_keV, nucleus):
 
         anucl = nucleus.get_A() 
+
+        c = 1.23 * anucl**(1/3) - 0.60  # Effective nuclear radius parameter (fm)
+        a = 0.52  # Diffuseness parameter (fm)
+        s = 0.9   # Skin thickness parameter (fm)
+
+        # Compute root-mean-square nuclear radius squared (in fm^2)
+        rn_sq = c**2 + (7.0 / 3.0) * (np.pi**2) * a**2 - 5 * s**2
+        rn_fm = np.sqrt(rn_sq)  # Root-mean-square radius in fm
   
         m_nucleus_keV = nucleus.get_m_GeV() * 1e6
     
         hbarc_keV_fm = 1.97327e4
-        erec_keV = np.logspace(-4, 2, 1000)
+        erec_keV = np.logspace(0, 3, 1000)
         data = []
         for erec in erec_keV:
 
 
-            c = 1.23 * anucl**(1/3) - 0.60  # Effective nuclear radius parameter (fm)
-            a = 0.52  # Diffuseness parameter (fm)
-            s = 0.9   # Skin thickness parameter (fm)
-
-            # Compute root-mean-square nuclear radius squared (in fm^2)
-            rn_sq = c**2 + (7.0 / 3.0) * (np.pi**2) * a**2 - 5 * s**2
-            rn_fm = np.sqrt(rn_sq)  # Root-mean-square radius in fm
-
             # Momentum transfer q (in keV/c)
-            q_keV = np.sqrt(erec**2 + 2 * m_nucleus_keV * erec)  # Momentum transfer in keV/c
+            #q_keV = np.sqrt(erec**2 + 2 * m_nucleus_keV * erec)  # Momentum transfer in keV/c
+            #low energy approximation
+            q_keV = np.sqrt(2 * m_nucleus_keV * erec)
 
 
             # Convert q from keV/c to fm^-1 (momentum transfer in inverse femtometers)
@@ -131,12 +155,12 @@ def helm_form_factor_squared2(anucl, erec_keV, m_nucleus_keV):
     # Constants in keV·fm
     hbarc_keV_fm = 1.97327e4  # hbar*c in keV·fm (converted from GeV·fm)
 
-    # Helm model parameters (in femtometers, fm)
+    # Helm model parameters (fm)
     c = 1.23 * anucl**(1/3) - 0.60  # Effective nuclear radius parameter (fm)
     a = 0.52  # Diffuseness parameter (fm)
     s = 0.9   # Skin thickness parameter (fm)
 
-    # Compute root-mean-square nuclear radius squared (in fm^2)
+    # Compute root-mean-square nuclear radius squared (fm^2)
     rn_sq = c**2 + (7.0 / 3.0) * (np.pi**2) * a**2 - 5 * s**2
     rn_fm = np.sqrt(rn_sq)  # Root-mean-square radius in fm
 
@@ -162,6 +186,7 @@ def helm_form_factor_squared2(anucl, erec_keV, m_nucleus_keV):
 
 
 def spherical_bessel_j1(x):
-    """Spherical Bessel function j1 according to Wolfram Alpha"""
+    #Spherical Bessel function j1 according to Wolfram Alpha
     return np.sin(x) / x**2 - np.cos(x) / x
 
+"""
