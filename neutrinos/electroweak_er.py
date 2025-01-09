@@ -32,7 +32,7 @@ class NeutrinoCrossSectionElectroweakER(VNeutrinoCrossSection):
 
 
     def dSigmadEr_cm2_keV(self, E_recoil, E_neutrino, nucleus, flavour):
-    
+
         self.SetCouplings(flavour)
 
         A_nuc = nucleus.get_A() #mass number

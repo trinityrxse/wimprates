@@ -55,7 +55,7 @@ class VNeutrinoCrossSection:
         pass
 
 class NeutrinoFlux:
-    def __init__(self, name: str, scaling: float,
+    def __init__(self, name, scaling: float,
                  neutrino_flavour: str, oscillation_mode: str):
         self.name = name
         self.scaling = scaling
@@ -91,11 +91,11 @@ class NeutrinoFlux:
 
         npoints = 1 if self.mode == FluxMode.Line else len(self.pdf_data) - 1
 
-        if self.oscillation_mode == OscillationMode.NoneMode:
+        if self.oscillation_mode == "none":
             self.flavours.clear()
             self.add_neutrino_flavour(NeutrinoFlavour.ElectronNeutrino, [1.0] * npoints)
 
-        elif self.oscillation_mode == OscillationMode.VacuumSunProduction:
+        elif self.oscillation_mode == "solar_vac_sun":
             p_ee = 1 - 0.5 * math.pow(math.sin(2 * theta_12), 2) * math.pow(math.cos(theta_13), 4) - 0.5 * math.pow(math.sin(2 * theta_13), 2)
             p_emu = -0.5 * math.sin(2 * theta_12) * math.pow(math.cos(theta_13), 2) * (math.sin(2 * theta_12) * (math.pow(math.sin(theta_23), 2) * math.pow(math.sin(theta_13), 2) - math.pow(math.cos(theta_23), 2)) - math.sin(2 * theta_23) * math.cos(2 * theta_12) * math.sin(theta_13)) + 0.5 * math.pow(math.sin(2 * theta_13), 2) * math.pow(math.sin(theta_23), 2)
             p_etau = 1 - p_ee - p_emu
@@ -105,7 +105,8 @@ class NeutrinoFlux:
             self.add_neutrino_flavour(NeutrinoFlavour.MuonNeutrino, [p_emu] * npoints)
             self.add_neutrino_flavour(NeutrinoFlavour.TauNeutrino, [p_etau] * npoints)
 
-        elif self.oscillation_mode == OscillationMode.MatterSunProduction:
+
+        elif self.oscillation_mode == "solar_matter_sun":
             # This part is specific and requires SolarMSWLookupTable
             # Initialise lookup table or load data from a file if it exists
             lookup_table_ee = DMCalcConstants.get_dmcalc_path() + "/DataBase/NeutrinoOscillations/lookup_table_solar_MSW_ee.txt"
@@ -199,6 +200,10 @@ class NeutrinoFlux:
         :return: Weighted average value.
         """
         # Map full neutrino names to their short forms
+
+        #print('made to flvavg')
+        #print(func(0.04), 'output')
+        
         full_to_short = {
             "ElectronNeutrino": "e",
             "MuonNeutrino": "mu",
@@ -238,33 +243,14 @@ class NeutrinoFlux:
         :return: Total flux (integrated over energy).
         """
         data = np.array(self.pdf_data)
-        #assuming first column (energy) in keV and second (flux) in MeV
-        flux = simps(x=data[:, 0], y=data[:, 1]*1e3) #NOTE this might be off by a factor
+
+        if len(data) == 1:
+            flux = data[:, 0] * data[:, 1]
+            flux = flux[0]
+        else:
+            #assuming first column (energy) in keV and second (flux) in MeV
+            flux = simps(x=data[:, 0]*1e-3, y=data[:, 1]) #NOTE this might be off by a factor
 
         # Result is in keV/cm^2
         return flux # Numerical integration using Simpson's rule
 
-
-# Example function to be used with flavour_average
-def example_function(x: float) -> float:
-    return x * 0.1  # Simple scaling function for demonstration
-
-# Main usage
-def main():
-    # Create a neutrino flux object
-    flux = NeutrinoFlux(name="8B", scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
-    #NOTE solar_matter_sun mode not fully implemented
-    
-    # Apply oscillations (this updates the flavours)
-    flux.apply_oscillation()
-
-    # Print the flavoured distribution after oscillations
-    print("Neutrino Flavours After Oscillation:", flux.flavours)
-
-    # Compute the flavour average for electron neutrino using a sample function
-    avg_flux = flux.flavour_average(example_function, "e")
-    print(f"Average flux for Electron Neutrino: {avg_flux}")
-
-
-if __name__ == "__main__":
-    main()

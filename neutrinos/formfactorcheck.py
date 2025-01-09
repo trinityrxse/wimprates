@@ -27,19 +27,22 @@ def helm(q, R):
     #print(qR, 'qR')
     if qR < 1e-12:
         return 1.0
-    #print((3 * sph_bessel_j1(qR)) * ((np.exp(-0.5 * (q * sparam)**2))/qR))
+    
+    #print((3 * sph_bessel_j1(qR)) * ((np.exp(-0.5 * (q * sparam)**2))/qR), 'helm')
     return (3 * sph_bessel_j1(qR)) * ((np.exp(-0.5 * (q * sparam)**2))/qR)
 
 # Helm radius in [fm]
 def helm_radius_fm(A):
     cparam = 1.23 * (A**(1.0 / 3.0)) - 0.6  # [fm]
     aparam = 0.52  # [fm]
+
     sparam = 0.9   # [fm]
     term = (7.0 / 3.0) * (PI**2) * (aparam**2) - 5 * (sparam**2)
     return np.sqrt(cparam**2 + term)
 
 # Helm form factor for a nucleus
 def helm_form_factor(Er_keV, A, mass_GeV):
+    #print('made here')
     R_eff = helm_radius_fm(A)  # [fm]
     q = recoil_to_q_ifm(Er_keV, mass_GeV)  # [fm^-1]
     return helm(q, R_eff)

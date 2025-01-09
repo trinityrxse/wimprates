@@ -24,6 +24,7 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         :param nucleus: target nucleus
         :return: value of the cross-section in cm^2.keV^-1
         """
+        #print('made to func')
 
         self.set_couplings(flavour)
 
@@ -35,6 +36,7 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
 
         # Ensure helm_form_factor_squared returns a dimensionless result
         Fsquared = helm_form_factor(E_recoil, A_nuc, m_nuc) #Er_keV, A, mass_GeV
+        #print(Fsquared, 'fsq')
 
         # Temporary debug fix for Fsquared
         if Fsquared is None or Fsquared <= 0:  # Handle any invalid values
