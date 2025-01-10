@@ -146,6 +146,7 @@ class NeutrinoRate:
                 # averages cross section over neutrino flux, weighted based on flavour
 
                 def rate_function(E_nu_keV):
+                    #print(E_nu_keV, E_nu_min)
                     if E_nu_keV > E_nu_min:
                         return self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour)
                     else:

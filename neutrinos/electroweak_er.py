@@ -32,7 +32,6 @@ class NeutrinoCrossSectionElectroweakER(VNeutrinoCrossSection):
 
 
     def dSigmadEr_cm2_keV(self, E_recoil, E_neutrino, nucleus, flavour):
-
         self.SetCouplings(flavour)
 
         A_nuc = nucleus.get_A() #mass number
@@ -76,9 +75,11 @@ class NeutrinoCrossSectionElectroweakER(VNeutrinoCrossSection):
                     RRPA_factor = self.fBinding.get_rrpa_scaling(NeutrinoFlavour.ElectronNeutrino, E_recoil)
                 else:
                     RRPA_factor = self.fBinding.get_rrpa_scaling(NeutrinoFlavour.MuonNeutrino, E_recoil)
+        
             dxsecdEr /= RRPA_factor
 
         dxsecdEr *= 3.89379e-16  # Convert from keV^-3 to cm^2/keV
+
         return max(dxsecdEr, 0)
 
     def SetCouplings(self, neutrino_flavour):

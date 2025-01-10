@@ -37,6 +37,7 @@ class AtomicBinding:
             try:
                 with open(scale_factor_eType, 'r') as file_eType, open(scale_factor_muTauType, 'r') as file_muTauType:
                     self.fExist = True
+                    
                     for line in file_eType:
                         energy, scaling = map(float, line.split())
                         self.fEnergies_eType.append(energy)
@@ -45,9 +46,12 @@ class AtomicBinding:
                         energy, scaling = map(float, line.split())
                         self.fEnergies_muTauType.append(energy)
                         self.fScaleFactor_muTauType.append(scaling)
+            
+
             except FileNotFoundError:
                 print("Could not find Xe RRPA .txt files, using stepping approximation instead")
                 self.fExist = False
+            
 
     def active_electrons_stepping(self, recoil_keV: float) -> int:
         """
@@ -74,14 +78,17 @@ class AtomicBinding:
         atom_shell_occupation = shells.get_shell_occupation()
 
         k_shell_energy = 0.001 * atom_shell_bes[0]  # Convert to keV
+
         if recoil_keV >= k_shell_energy:
             n_scattered_elec = atom_no_elec
         else:
             for j in range(atom_number_of_shells):
                 shell_occupancy = atom_shell_occupation[j]
                 binding_energy = 0.001 * atom_shell_bes[j]  # Convert to keV
+
                 if recoil_keV >= binding_energy:
                     n_scattered_elec += shell_occupancy
+
         return n_scattered_elec
 
     def get_rrpa_scaling(self, neutrino_flavour: NeutrinoFlavour, recoil_keV: float) -> float:
@@ -98,13 +105,13 @@ class AtomicBinding:
         rrpa_factor = 1.0  # Default scaling factor
 
         if self.fExist:
-            if neutrino_flavour == 'ElectronNeutrino':
+
+            if neutrino_flavour == 'e':
                 energies, scale_factors = self.fEnergies_eType, self.fScaleFactor_eType
-            elif neutrino_flavour in ('MuonNeutrino', 'TauNeutrino'):
+            elif neutrino_flavour in ('mu', 'tau'):
                 energies, scale_factors = self.fEnergies_muTauType, self.fScaleFactor_muTauType
             else:
                 return rrpa_factor  # Default for unknown flavour
-
             if energies[0] < recoil_keV < energies[-1]:
                 idx_right = bisect_left(energies, recoil_keV)
                 left_energy, right_energy = energies[idx_right - 1], energies[idx_right]
@@ -115,7 +122,7 @@ class AtomicBinding:
                 rrpa_factor = left_scale + diff_scale_diff_energy * (recoil_keV - left_energy)
             elif recoil_keV >= energies[-1]:
                 rrpa_factor = scale_factors[-1] # If recoil_keV exceeds all energies, return the last scaling factor
-
+        
         return rrpa_factor
 
 class AtomicShells:
