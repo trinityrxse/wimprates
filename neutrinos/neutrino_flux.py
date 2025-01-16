@@ -75,7 +75,9 @@ class NeutrinoFlux:
             "solar_matter_sun": OscillationMode.MatterSunProduction,
         }
         self.oscillation_mode = self.oscillation_map[oscillation_mode]
-        self.add_neutrino_flavour(self.flavour_map[neutrino_flavour])
+        for neutrino_flav in neutrino_flavour:
+            self.add_neutrino_flavour(self.flavour_map[neutrino_flav])
+
 
         self.pdf_data = self.pdf_data()
 
@@ -90,10 +92,10 @@ class NeutrinoFlux:
         theta_23 = math.asin(math.sqrt(DMCalcConstants.sin_sq_theta_23))
 
         npoints = 1 if self.mode == FluxMode.Line else len(self.pdf_data) - 1
-
         if self.oscillation_mode == "none":
-            self.flavours.clear()
-            self.add_neutrino_flavour(NeutrinoFlavour.ElectronNeutrino, [1.0] * npoints)
+            keys = list(self.flavours.keys())
+            self.flavours.clear()    
+            self.add_neutrino_flavour(keys[0], [1.0] * npoints)
 
         elif self.oscillation_mode == "solar_vac_sun":
             p_ee = 1 - 0.5 * math.pow(math.sin(2 * theta_12), 2) * math.pow(math.cos(theta_13), 4) - 0.5 * math.pow(math.sin(2 * theta_13), 2)
@@ -119,8 +121,11 @@ class NeutrinoFlux:
                 print("New SolarMSWLookupTable files have been created.")
             
             # Now using the lookup table
-            #lookup = SolarMSWLookupTable(min_energy_GeV, max_energy_GeV, min_distance_km, max_distance_km)
-            lookup = SolarMSWLookupTable(0.01e-6, 1000e-6, 1, 1000)
+            #lookup = SolarMSWLookupTable(min_energy_GeV, max_energy_GeV, min_distance_km, max_distance_km) 
+            #TODO ask Rob where these inputs are from / how do we calculate 
+            #TODO ask Rob what lookup table is meant to look like
+
+            lookup = SolarMSWLookupTable(1e-7, 1e3, 1, 1000000) 
             production_points = DMCalcConstants.get_dmcalc_path() + "/DataBase/NeutrinoFlux/production_points/" + self.name + ".txt"
             print(production_points)
             p_ee_vec = []
@@ -129,7 +134,7 @@ class NeutrinoFlux:
 
             # Handle the energy lookup (keV to GeV conversion)
             if len(self.pdf_data) == 1:
-                energy = self.pdf_data[0][0] * 1e-3  # Convert to GeV #TODO check
+                energy = self.pdf_data[0][0] * 1e-6  # Convert to GeV #TODO check
                 with open(production_points, "r") as file:
                         values = []
                         for line in file:
@@ -171,6 +176,7 @@ class NeutrinoFlux:
             self.add_neutrino_flavour(NeutrinoFlavour.TauNeutrino, p_etau_vec)
 
 
+
     def pdf_data(self):
         data = []
         file = DMCalcConstants.get_dmcalc_path() + f"/DataBase/NeutrinoFlux/data/{self.name}.txt"
@@ -201,9 +207,6 @@ class NeutrinoFlux:
         """
         # Map full neutrino names to their short forms
 
-        #print('made to flvavg')
-        #print(func(0.04), 'output')
-        
         full_to_short = {
             "ElectronNeutrino": "e",
             "MuonNeutrino": "mu",
@@ -216,41 +219,53 @@ class NeutrinoFlux:
 
         # Check if the flavour is valid
         if flavour not in self.flavours:
-            raise ValueError(f"Invalid flavour: {flavour}. Valid options are {list(self.flavours.keys())}")
+            total = 0
+            #raise ValueError(f"Invalid flavour: {flavour}. Valid options are {list(self.flavours.keys())}")
+        else:
+            # Get the abundance for the specified flavour
+            # Note flux units in MeV -- convert energy in keV to MeV
+            abundance = self.flavours[flavour]
+            # Handle line mode
+            #TODO check with Rob which ones if any are meant to be line modes 
+            if self.mode == FluxMode.Line:
+                return abundance[0] * func(self.pdf_data[0][0]* 1e3)
 
-        # Get the abundance for the specified flavour
-        # Note flux units in MeV -- convert energy in keV to MeV
-        abundance = self.flavours[flavour]
-        # Handle line mode
-        if self.mode == FluxMode.Line:
-            return abundance[0] * func(self.pdf_data[0][0])
+            # Compute the total weighted average for non-line mode
+            total = 0
+            prev_val = func(self.pdf_data[0][0]* 1e3)
+            
 
-        # Compute the total weighted average for non-line mode
-        total = 0
-        prev_val = func(self.pdf_data[0][0])
-
-        for i in range(1, len(self.pdf_data)-1): 
-            val = func(self.pdf_data[i][0]*1e3) * abundance[i]
-            total += 0.5 * (val * self.pdf_data[i][1]*1e3 + prev_val * self.pdf_data[i - 1][1]*1e3) * (self.pdf_data[i][0] - self.pdf_data[i - 1][0])
-            prev_val = val
+            for i in range(1, len(self.pdf_data)-1): 
+                val = func(self.pdf_data[i][0])* 1e3 * abundance[i]
+                #print(val)
+                total += 0.5 * (val + prev_val) * abundance[i] * (self.pdf_data[i][0] - self.pdf_data[i - 1][0]) * 1e3
+                #print(total)
+                prev_val = val
 
         return total #in MeV units
 
     
-    def get_total_flux(self) -> float:
+    def get_total_flux(self, E_min: float = None, E_max: float = None) -> float:
         """
         Compute the total flux by integrating flux vs. energy.
         :return: Total flux (integrated over energy).
         """
         data = np.array(self.pdf_data)
 
+        # Apply integration limits if specified
+        if E_min is not None:
+            data = data[data[:, 0] >= E_min] 
+        if E_max is not None:
+            data = data[data[:, 0] <= E_max]  
+
+        # Check if there is only one data point, and handle that case
         if len(data) == 1:
-            flux = data[:, 0] * data[:, 1]
+            flux = data[:, 0] * 1e-3 * data[:, 1]*1e3  # Energy in keV to MeV
             flux = flux[0]
         else:
-            #assuming first column (energy) in keV and second (flux) in MeV
-            flux = simps(x=data[:, 0]*1e-3, y=data[:, 1]) #NOTE this might be off by a factor
+            # Assuming first column is energy (keV) and second column is flux (per s per cm^2 per MeV)
+            flux = simps(x=data[:, 0] * 1e-3, y=data[:, 1]*1e3)  # Convert energy to MeV for integration
 
-        # Result is in keV/cm^2
-        return flux # Numerical integration using Simpson's rule
+        # Return total flux in units of /s/cm^2
+        return flux
 

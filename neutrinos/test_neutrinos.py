@@ -2,71 +2,18 @@ from neutrino_rates import *
 import unittest
 import math
 import test_neutrinos
-from scipy.misc import derivative
-import pandas as pd
+import pandas as pd 
+import pickle as pkl
+
 
 class TestNeutrino(unittest.TestCase):
-       
-    def test_components_ER(self):
-        xe_target = Target("Xe", 131.29, 54)
-
-        interaction_type = InteractionType.EW_RRPA
-
-        # Required flux component (e.g., "8B" neutrinos from the sun)
-        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be", "7Be_PP_CNO"
-
-        # Initialise the neutrino rate calculation for xe target
-        nurate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
-
-        fig1, ax1 = plt.subplots(figsize=(10, 6))  
-        fig2, ax2 = plt.subplots(figsize=(10, 6))  
-
-        overall_flux = 0  # Initialize overall flux
-
-        er = np.logspace(-1, 5, 1000)
-        for name in required_fluxes:
-            nurate.set_required_fluxes(name)
-            total = 0
-            rates = []
-            rates_per_keV = []
-
-            for e in er:
-                rate = nurate.get_rate(e)
-                rate_per_keV = rate / e
-                rates.append(rate)
-                rates_per_keV.append(rate_per_keV)
-
-
-            if name != 'All':
-                total += nurate.f_flux.get_total_flux_cm2s()
-                ax1.loglog(er, rates, label=name, alpha=0.5)
-                ax2.loglog(er, rates_per_keV, label=name, alpha=0.5)
-                print(f'Total Flux: {total} for {name}')
-                overall_flux += total
-
-        ax1.set_xlabel('Recoil Energy [keV]', fontsize=16)
-        ax1.set_ylabel('Rate [Events / ton / year]', fontsize=16)
-        ax1.set_title('Neutrino Recoil Rates (ER)', fontsize=20)
-        ax1.grid(which='both', linestyle='--')
-        ax1.legend(fontsize=12)
-        fig1.tight_layout()
-        fig1.savefig("outputs/ER_spectrum_rates.png")
-
-        ax2.set_xlabel('Recoil Energy [keV]', fontsize=16)
-        ax2.set_ylabel('Rate [Events / ton / year / keV]', fontsize=16)
-        ax2.set_title('Neutrino Recoil Rates per keV (ER)', fontsize=20)
-        ax2.grid(which='both', linestyle='--')
-        ax2.legend(fontsize=12)
-        fig2.tight_layout()
-        fig2.savefig("outputs/ER_spectrum_rates_per_keV.png")
-
-        plt.show()
-
-        print(f"Overall Flux: {overall_flux}, All Flux: {nurate.spectrum().get_total_flux_cm2s()}")
 
     def test_components_NR(self):
         plt.figure(figsize = (12,8))
-        er = np.logspace(-4, 2, 1000)
+        er = np.logspace(-3, 2, 1000)
+
+       # with open('8Bdata.pkl', 'rb') as file:
+       #     data = pkl.load(file)
 
         xe_target = Target("Xe", 131.29, 54)
 
@@ -74,7 +21,7 @@ class TestNeutrino(unittest.TestCase):
         interaction_type = InteractionType.COHERENT
 
         # Required flux component (e.g., "8B" neutrinos from the sun)
-        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be", "7Be_PP_CNO"
+        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be"
 
         # Initialise the neutrino rate calculation for xe target
         nurate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
@@ -84,7 +31,6 @@ class TestNeutrino(unittest.TestCase):
         fig2, ax2 = plt.subplots(figsize=(10, 6))  
 
         overall_flux = 0  # Initialize overall flux
-
         for name in required_fluxes:
             nurate.set_required_fluxes(name)
             total = 0
@@ -100,11 +46,15 @@ class TestNeutrino(unittest.TestCase):
 
             if name != 'All':
                 total += nurate.f_flux.get_total_flux_cm2s()
-                ax1.loglog(er, rates, label=name, alpha=0.5)
-                ax2.loglog(er, rates_per_keV, label=name, alpha=0.5)
+                ax1.loglog(er, rates, label=name)
+                ax2.loglog(er, rates_per_keV, label=name)
                 print(f'Total Flux: {total} for {name}')
                 overall_flux += total
 
+        #ax1.loglog(data['Recoil Energy [keV]'], data['Rate [Events / ton/year / keV]'], label='pkl file')
+        #dataprime = data['Rate [Events / ton/year / keV]'] / rate
+        #print(dataprime)
+        #ax1.scatter(data['Recoil Energy [keV]'], dataprime, label='ratio')
         ax1.set_xlabel('Recoil Energy [keV]', fontsize=16)
         ax1.set_ylabel('Rate [Events / ton / year]', fontsize=16)
         ax1.set_title('Neutrino Recoil Rates (NR)', fontsize=20)
@@ -129,7 +79,7 @@ class TestNeutrino(unittest.TestCase):
 
          # Required flux component (e.g., "8B" neutrinos from the sun)
         required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be"
-        plt.clf()
+
         flux_map: Dict[str, List[str]] = {
             "DSN": ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3"],
             "Atmospheric": ["AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"],
@@ -165,18 +115,23 @@ class TestNeutrino(unittest.TestCase):
                 pass
             else:
                 for key in flux_map[name]:
-                    print(key)
-                    flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
-                    flux.apply_oscillation()
+                    if key in ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3", "AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"
+                               ]:
+                        flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="none")
+                        print('skip osc')
+                    else:
+                        flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
+                        flux.apply_oscillation()
 
                     flux_pdf = np.array(flux.pdf_data)
+   
 
                     energy, amp = flux_pdf[:,0], flux_pdf[:,1] #TODO these need to be scaled by arbitrary powers of 10 to match Rob's
                                             #WHY?? I am just plotting what should be the exact same numbers as Rob
-                    
+
 
                     if len(energy) == 1:
-                        plt.plot([energy[0], energy[0]], [0, 1e5], color = c[key], ls='--')
+                        plt.plot([energy[0], energy[0]], [0, 1e5], color = c[key], ls='--', label=key)
                     
                     else:
                         # Find index of the minimum energy
@@ -192,14 +147,15 @@ class TestNeutrino(unittest.TestCase):
                         else:
                             plt.loglog(energy, amp, label=flux.name, color=c[key])
 
-        plt.xlim(1e-3, 10000)
-        plt.ylim(1e-7, 1e4)
+        #plt.xlim(1e-3, 10000)
+        #plt.ylim(1e-7, 1e4)
         plt.xlabel('Neutrino Energy [MeV]', fontsize = 14)
         plt.legend(fontsize = 8, loc = 'upper right')
         plt.ylabel('Flux [1/cm$^2$/s/MeV]', fontsize = 14)
         plt.title('Neutrino Flux', fontsize = 20)
         plt.savefig('outputs/NuFluxes.png')
         plt.show()
+        print('complete')
 
     def test_ER_methods(self):
         xe_target = Target("Xe", 131.29, 54)
@@ -302,3 +258,124 @@ class TestNeutrino(unittest.TestCase):
         plt.title('Neutrino Recoil Rates (ER)', fontsize = 20)
         plt.savefig('outputs/ER_comparison.png')
         plt.show()
+
+    def test_components_ER(self):
+        xe_target = Target("Xe", 131.29, 54)
+
+        interaction_type = InteractionType.EW_RRPA
+
+        # Required flux component (e.g., "8B" neutrinos from the sun)
+        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be"
+
+        # Initialise the neutrino rate calculation for xe target
+        nurate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
+
+        fig1, ax1 = plt.subplots(figsize=(10, 6))  
+        fig2, ax2 = plt.subplots(figsize=(10, 6))  
+
+        overall_flux = 0  # Initialize overall flux
+
+        er = np.logspace(-1, 5, 1000)
+        for name in required_fluxes:
+            nurate.set_required_fluxes(name)
+            total = 0
+            rates = []
+            rates_per_keV = []
+
+            for e in er:
+                rate = nurate.get_rate(e)
+                rate_per_keV = rate / e
+                rates.append(rate)
+                rates_per_keV.append(rate_per_keV)
+
+
+            if name != 'All':
+                total += nurate.f_flux.get_total_flux_cm2s()
+                ax1.loglog(er, rates, label=name, alpha=0.5)
+                ax2.loglog(er, rates_per_keV, label=name, alpha=0.5)
+                print(f'Total Flux: {total} for {name}')
+                overall_flux += total
+
+        ax1.set_xlabel('Recoil Energy [keV]', fontsize=16)
+        ax1.set_ylabel('Rate [Events / ton / year]', fontsize=16)
+        ax1.set_title('Neutrino Recoil Rates (ER)', fontsize=20)
+        ax1.grid(which='both', linestyle='--')
+        ax1.legend(fontsize=12)
+        fig1.tight_layout()
+        fig1.savefig("outputs/ER_spectrum_rates.png")
+
+        ax2.set_xlabel('Recoil Energy [keV]', fontsize=16)
+        ax2.set_ylabel('Rate [Events / ton / year / keV]', fontsize=16)
+        ax2.set_title('Neutrino Recoil Rates per keV (ER)', fontsize=20)
+        ax2.grid(which='both', linestyle='--')
+        ax2.legend(fontsize=12)
+        fig2.tight_layout()
+        fig2.savefig("outputs/ER_spectrum_rates_per_keV.png")
+
+        plt.show()
+
+        print(f"Overall Flux: {overall_flux}, All Flux: {nurate.spectrum().get_total_flux_cm2s()}")
+
+"""    
+    def test_components_NR(self):
+        plt.figure(figsize = (12,8))
+        er = np.logspace(-4, 2, 1000)
+
+        xe_target = Target("Xe", 131.29, 54)
+
+        # Define interaction type (e.g., COHERENT)
+        interaction_type = InteractionType.COHERENT
+
+        # Required flux component (e.g., "8B" neutrinos from the sun)
+        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be", "7Be_PP_CNO"
+
+        # Initialise the neutrino rate calculation for xe target
+        nurate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
+
+
+        fig1, ax1 = plt.subplots(figsize=(10, 6))  
+        fig2, ax2 = plt.subplots(figsize=(10, 6))  
+
+        overall_flux = 0  
+
+        for name in required_fluxes:
+            nurate.set_required_fluxes(name)
+            total = 0
+            rates = []
+            rates_per_keV = []
+
+            for e in er:
+                rate = nurate.get_rate(e)
+                rate_per_keV = rate / e
+                rates.append(rate)
+                rates_per_keV.append(rate_per_keV)
+
+
+            if name != 'All':
+                total += nurate.f_flux.get_total_flux_cm2s()
+                ax1.loglog(er, rates, label=name)
+                ax2.loglog(er, rates_per_keV, label=name)
+                print(f'Total Flux: {total} for {name}')
+                overall_flux += total
+
+        ax1.set_xlabel('Recoil Energy [keV]', fontsize=16)
+        ax1.set_ylabel('Rate [Events / ton / year]', fontsize=16)
+        ax1.set_title('Neutrino Recoil Rates (NR)', fontsize=20)
+        ax1.grid(which='both', linestyle='--')
+        ax1.legend(fontsize=12)
+        fig1.tight_layout()
+        fig1.savefig("outputs/NR_spectrum_rates.png")
+
+        ax2.set_xlabel('Recoil Energy [keV]', fontsize=16)
+        ax2.set_ylabel('Rate [Events / ton / year / keV]', fontsize=16)
+        ax2.set_title('Neutrino Recoil Rates per keV (NR)', fontsize=20)
+        ax2.grid(which='both', linestyle='--')
+        ax2.legend(fontsize=12)
+        fig2.tight_layout()
+        fig2.savefig("outputs/NR_spectrum_rates_per_keV.png")
+
+        plt.show()
+
+        print(f"Overall Flux: {overall_flux}, All Flux: {nurate.spectrum().get_total_flux_cm2s()}")
+"""
+ 

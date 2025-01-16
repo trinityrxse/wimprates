@@ -19,6 +19,7 @@ class NeutrinoCrossSectionElectroweakER(VNeutrinoCrossSection):
     """
     Neutrino electroweak cross-section class.
     """
+    #TODO fix this so it works with antineutrinos
 
     def __init__(self, binding_flag: InteractionType):
         super().__init__()

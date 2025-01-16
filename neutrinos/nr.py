@@ -24,10 +24,10 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         :param nucleus: target nucleus
         :return: value of the cross-section in cm^2.keV^-1
         """
-        #print('made to func')
 
+        #TODO check with Rob do we need to set couplings and have oscillations for antineutrinos
         self.set_couplings(flavour)
-
+        #print(E_recoil, E_neutrino)
         A_nuc = nucleus.get_A()  # mass number
         Z_nuc = nucleus.get_Z()  # atomic number
         m_nuc = nucleus.get_m_GeV() #in GeV still * 1e6  # actual mass in keV
@@ -47,9 +47,9 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
             ((self.fCoupling_v_proton * Z_nuc) + 
             (self.fCoupling_v_neutron * (A_nuc - Z_nuc)))**2
         ) * (1 + (1 - E_recoil / E_neutrino)**2 - ((m_nuc * E_recoil) / (E_neutrino**2))) * Fsquared
-
+        
         # Convert to cm^2/keV
-        dxsecdEr *= 3.88e-28  # Conversion factor from keV^-2 to cm^2 (physical constants included)
+        dxsecdEr *= 3.88e-16 
         # Ensure the result is non-negative
         dxsecdEr = np.fmax(dxsecdEr, 0)
 
@@ -62,7 +62,6 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         Set the couplings.
         :param neutrinoFlavour: neutrino flavour enum
         """
-        # Placeholder for setting couplings based on neutrino flavour
         if neutrinoFlavour == "ElectronNeutrino":
             self.fCoupling_v_proton = 0.03824555057133305
             self.fCoupling_v_neutron = -0.511669383346544

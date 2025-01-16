@@ -44,11 +44,12 @@ class CompositeNeutrinoFlux():
         self.components.append(flux)
 
 
-    def get_total_flux_cm2s(self):
+    def get_total_flux_cm2s(self, E_min: float = None, E_max: float = None):
         #for if the flux we want has more than one component (more than one file)
         total = 0
         for component in self.components:
-            total += component.get_total_flux() # Result is in keV/cm^2
+            total += component.get_total_flux(E_min, E_max) # Result is in /s/cm^2
+            #print('tot flux', component.get_total_flux(E_min, E_max), component.name)
 
         return total #this is the flux for all of the components loaded
 
@@ -58,6 +59,7 @@ class CompositeNeutrinoFlux():
             #component.oscillation_mode == OscillationMode.NoneMode
             component.apply_oscillation()
             avg = component.flavour_average(func, flavour)
+            #print(avg, component.name)
             avg_for_flavour += avg
 
         return avg_for_flavour
@@ -84,17 +86,37 @@ class NeutrinoRate:
             "PP": ["pp"],
             "CNO": ["13N", "15O", "17F"],
             "7Be": ["7Be_384.3keV", "7Be_861.3keV"],
-            "7Be_PP_CNO": ["7Be_384.3keV", "7Be_861.3keV", "pp", "13N", "15O", "17F"]
         }
         for component in flux_map.keys():
             required_neutrino_fluxes = flux_map.get(component, [])
             for key in required_neutrino_fluxes:
-                flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun",
-                                # "solar_vac_sun"
-                                    ) 
+                if key in ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3", "AtmNu_e", 
+                               ]:
+                    flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["e"], oscillation_mode="none",
+                                    # "solar_vac_sun"
+                                        ) 
+                elif key == "AtmNu_ebar":
+                    flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["e_anti"], oscillation_mode="none",
+                                    # "solar_vac_sun"
+                                        ) 
+                    
+                elif key == "AtmNu_mu": 
+                    flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["mu"], oscillation_mode="none",
+                                    # "solar_vac_sun"
+                                        ) 
+                    
+                elif key == "AtmNu_mubar":
+                    flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["mu_anti"], oscillation_mode="none",
+                                    # "solar_vac_sun"
+                                        ) 
+
+                else:
+                    flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["e", "mu", "tau"], oscillation_mode="solar_vac_sun",
+                                    # "solar_vac_sun"
+                                        ) 
+                #flux.apply_oscillation()
                 self.f_flux.add_component(flux)
         return self.f_flux
-
 
     def set_required_fluxes(self, component: str):
         flux_map: Dict[str, List[str]] = {
@@ -112,9 +134,30 @@ class NeutrinoRate:
         self.f_flux.clear()
         for key in required_neutrino_fluxes:
             print(key)
-            flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun",
-                               # "solar_vac_sun"
-                                ) 
+            if key in ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3", "AtmNu_e", 
+                               ]:
+                flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["e"], oscillation_mode="none",
+                                # "solar_vac_sun"
+                                    ) 
+            elif key == "AtmNu_ebar":
+                flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["e_anti"], oscillation_mode="none",
+                                # "solar_vac_sun"
+                                    ) 
+                
+            elif key == "AtmNu_mu": 
+                flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["mu"], oscillation_mode="none",
+                                # "solar_vac_sun"
+                                    ) 
+                
+            elif key == "AtmNu_mubar":
+                flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["mu_anti"], oscillation_mode="none",
+                                # "solar_vac_sun"
+                                    ) 
+
+            else:
+                flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour=["e", "mu", "tau"], oscillation_mode="solar_vac_sun",
+                                # "solar_vac_sun"
+                                    ) 
             #flux.apply_oscillation()
             self.f_flux.add_component(flux)
 
@@ -130,6 +173,7 @@ class NeutrinoRate:
         rate = 0.0
 
         for flavour in ["ElectronNeutrino", "MuonNeutrino", "TauNeutrino"]:
+      
             rate_contrib = 0.0
             for nucleus in [self.target]:
                 m_nuc = nucleus.get_m_GeV() * 1e6 #conversion to keV 
@@ -147,7 +191,8 @@ class NeutrinoRate:
 
                 def rate_function(E_nu_keV):
                     #print(E_nu_keV, E_nu_min)
-                    if E_nu_keV > E_nu_min:
+                    #only works if I scale E_nu_keV * 1e3
+                    if E_nu_keV*1e3 > E_nu_min:
                         return self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour)
                     else:
                         return 0
@@ -157,8 +202,9 @@ class NeutrinoRate:
                 # keV/cm^2 [* conversion to keV *] weighted average cross section in cm2 keV
                 #print(self.f_flux.get_total_flux_cm2s(), 'total flux')
                 #print(self.f_flux.flavour_average(rate_function, flavour), 'flvavg')
+                #TODO check with Rob if i am meant to x by integrated total flux for each 
                 dR_dE_r = self.f_flux.get_total_flux_cm2s()* max(0, self.f_flux.flavour_average(rate_function, flavour))
-                dR_dE_r *= ((5.61e35 * 3.154e7)/ (m_nuc * 3.829295650095628e-26)) #should give rate in per year per tonne
+                dR_dE_r *= ((5.61e35 * 3.154e7)/ (m_nuc * 3.829295650095628e-26)) #should give rate in per year per tonne???
                 #TODO check with Rob why is this in your code? what does 5.61e35 do? 
                 rate_contrib += nucleus.mass_frac * dR_dE_r
             
