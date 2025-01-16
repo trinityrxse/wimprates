@@ -7,13 +7,142 @@ import pickle as pkl
 
 
 class TestNeutrino(unittest.TestCase):
+    def test_flux(self):
 
+         # Required flux component (e.g., "8B" neutrinos from the sun)
+        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be"
+
+        flux_map: Dict[str, List[str]] = {
+            "DSN": ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3"],
+            "Atmospheric": ["AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"],
+            "8B": ["8B"],
+            "HEP": ["hep"],
+            "PEP": ["pep"],
+            "PP": ["pp"],
+            "CNO": ["13N", "15O", "17F"],
+            "7Be": ["7Be_384.3keV", "7Be_861.3keV"],
+            "7Be_PP_CNO": ["7Be_384.3keV", "7Be_861.3keV", "pp", "13N", "15O", "17F"]
+        }
+
+        c = {"dsnbflux_8": 'tab:cyan', 
+             "dsnbflux_5": 'tab:blue', 
+             "dsnbflux_3": 'tab:orange',
+             "AtmNu_e": 'tab:green', 
+             "AtmNu_ebar": 'tab:red',
+             "AtmNu_mu": 'tab:purple',
+             "AtmNu_mubar": 'tab:brown',
+             "8B": 'tab:brown',
+             "hep": 'tab:green',
+             "pep": 'tab:orange',
+             "pp": 'tab:blue',
+             "13N": 'tab:pink',
+             "15O": 'tab:gray',
+             "17F": 'tab:olive',
+             "7Be_384.3keV": 'tab:red',
+             "7Be_861.3keV": 'tab:purple'
+             }
+        
+        flux_map: Dict[str, List[str]] = {
+            "DSN": ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3"],
+            "Atmospheric": ["AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"],
+            "8B": ["8B"],
+            "HEP": ["hep"],
+            "PEP": ["pep"],
+            "PP": ["pp"],
+            "CNO": ["13N", "15O", "17F"],
+            "7Be": ["7Be_384.3keV", "7Be_861.3keV"],
+            "7Be_PP_CNO": ["7Be_384.3keV", "7Be_861.3keV", "pp", "13N", "15O", "17F"]
+        }
+
+        scaling = {
+                "pp": {"flux": 5.98e10, "flavour": "e", "source": "solar_vac_sun"
+                      #"solar_matter_sun"
+                       },
+                "pep": {"flux": 1.44e8, "flavour": "e", "source": "solar_vac_sun"
+                       # "solar_matter_sun"
+                        },
+                "hep": {"flux": 7.98e3, "flavour": "e", "source": "solar_vac_sun"
+                       # "solar_matter_sun"
+                        },
+                "7Be_384.3keV": {"flux": 6.44e8, "flavour": "e", "source": "solar_vac_sun"
+                              #   "solar_matter_sun"
+                                 },
+                "7Be_861.3keV": {"flux": 4.35e9, "flavour": "e", "source": "solar_vac_sun"
+                             #    "solar_matter_sun"
+                                 },
+                "8B": {"flux": 5.25e6, "flavour": "e", "source": "solar_vac_sun"
+                     #  "solar_matter_sun"
+                       },
+                "13N": {"flux": 2.78e8, "flavour": "e", "source": "solar_vac_sun"
+                      #  "solar_matter_sun"
+                        },
+                "15O": {"flux": 2.05e8, "flavour": "e", "source": "solar_vac_sun"
+                     #   "solar_matter_sun"
+                        },
+                "17F": {"flux": 5.29e6, "flavour": "e", "source": "solar_vac_sun"
+                    #    "solar_matter_sun"
+                        },
+                "dsnbflux_8": {"flux": 17.0, "flavour": "mu", "source": "none"},
+                "dsnbflux_5": {"flux": 27.2, "flavour": "e_anti", "source": "none"},
+                "dsnbflux_3": {"flux": 45.4, "flavour": "e", "source": "none"},
+                "AtmNu_e": {"flux": 1.0, "flavour": "e", "source": "none"},
+                "AtmNu_ebar": {"flux": 1.0, "flavour": "e_anti", "source": "none"},
+                "AtmNu_mu": {"flux": 1.0, "flavour": "mu", "source": "none"},
+                "AtmNu_mubar": {"flux": 1.0, "flavour": "mu_anti", "source": "none"}
+            }
+
+        
+        for name in required_fluxes:
+            if name == 'All':
+                pass
+            else:
+                for key in flux_map[name]:
+                    flux = NeutrinoFlux(name=key, scaling=scaling[key]['flux'], neutrino_flavour=[scaling[key]['flavour']], oscillation_mode=scaling[key]['source'],
+                                    # "solar_vac_sun"
+                                        ) 
+                    flux.apply_oscillation()
+
+                    flux_pdf = np.array(flux.pdf_data)
+   
+
+                    energy, amp = flux_pdf[:,0], flux_pdf[:,1] #TODO these need to be scaled by arbitrary powers of 10 to match Rob's
+                                            #WHY?? I am just plotting what should be the exact same numbers as Rob
+
+
+                    if len(energy) == 1:
+                        plt.plot([energy[0], energy[0]], [0, 1e5], color = c[key], ls='--', label=key)
+                    
+                    else:
+                        # Find index of the minimum energy
+                        min_energy_idx = np.argmin(energy)
+                        min_energy = energy[min_energy_idx]
+                        corresponding_amp = amp[min_energy_idx]
+
+                        if min_energy > 1e-3:
+                            # Plot vertical line at the minimum energy
+                            plt.plot([min_energy, min_energy], [0, corresponding_amp], color = c[key])
+                            plt.loglog(energy, amp, label=flux.name, color=c[key])
+
+                        else:
+                            plt.loglog(energy, amp, label=flux.name, color=c[key])
+
+        #plt.xlim(1e-3, 10000)
+        plt.ylim(1, 1e12)
+        plt.xlabel('Neutrino Energy [MeV]', fontsize = 14)
+        plt.legend(fontsize = 8, loc = 'upper right')
+        plt.ylabel('Flux [1/cm$^2$/s/MeV]', fontsize = 14)
+        plt.title('Neutrino Flux', fontsize = 20)
+        plt.savefig('outputs/NuFluxes.png')
+        plt.show()
+        print('complete')
+
+"""
     def test_components_NR(self):
         plt.figure(figsize = (12,8))
         er = np.logspace(-3, 2, 1000)
 
-       # with open('8Bdata.pkl', 'rb') as file:
-       #     data = pkl.load(file)
+        #with open('8Bdata.pkl', 'rb') as file:
+        #    data = pkl.load(file)
 
         xe_target = Target("Xe", 131.29, 54)
 
@@ -29,7 +158,7 @@ class TestNeutrino(unittest.TestCase):
 
         fig1, ax1 = plt.subplots(figsize=(10, 6))  
         fig2, ax2 = plt.subplots(figsize=(10, 6))  
-
+        #required_fluxes = ["PEP"]
         overall_flux = 0  # Initialize overall flux
         for name in required_fluxes:
             nurate.set_required_fluxes(name)
@@ -74,89 +203,7 @@ class TestNeutrino(unittest.TestCase):
         plt.show()
 
         print(f"Overall Flux: {overall_flux}, All Flux: {nurate.spectrum().get_total_flux_cm2s()}")
-
-    def test_flux(self):
-
-         # Required flux component (e.g., "8B" neutrinos from the sun)
-        required_fluxes = "All", "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be"
-
-        flux_map: Dict[str, List[str]] = {
-            "DSN": ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3"],
-            "Atmospheric": ["AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"],
-            "8B": ["8B"],
-            "HEP": ["hep"],
-            "PEP": ["pep"],
-            "PP": ["pp"],
-            "CNO": ["13N", "15O", "17F"],
-            "7Be": ["7Be_384.3keV", "7Be_861.3keV"],
-            "7Be_PP_CNO": ["7Be_384.3keV", "7Be_861.3keV", "pp", "13N", "15O", "17F"]
-        }
-
-        c = {"dsnbflux_8": 'tab:cyan', 
-             "dsnbflux_5": 'tab:blue', 
-             "dsnbflux_3": 'tab:orange',
-             "AtmNu_e": 'tab:green', 
-             "AtmNu_ebar": 'tab:red',
-             "AtmNu_mu": 'tab:purple',
-             "AtmNu_mubar": 'tab:brown',
-             "8B": 'tab:brown',
-             "hep": 'tab:green',
-             "pep": 'tab:orange',
-             "pp": 'tab:blue',
-             "13N": 'tab:pink',
-             "15O": 'tab:gray',
-             "17F": 'tab:olive',
-             "7Be_384.3keV": 'tab:red',
-             "7Be_861.3keV": 'tab:purple'
-             }
-        
-        for name in required_fluxes:
-            if name == 'All':
-                pass
-            else:
-                for key in flux_map[name]:
-                    if key in ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3", "AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"
-                               ]:
-                        flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="none")
-                        print('skip osc')
-                    else:
-                        flux = NeutrinoFlux(name=key, scaling=1.0, neutrino_flavour="e", oscillation_mode="solar_vac_sun")
-                        flux.apply_oscillation()
-
-                    flux_pdf = np.array(flux.pdf_data)
-   
-
-                    energy, amp = flux_pdf[:,0], flux_pdf[:,1] #TODO these need to be scaled by arbitrary powers of 10 to match Rob's
-                                            #WHY?? I am just plotting what should be the exact same numbers as Rob
-
-
-                    if len(energy) == 1:
-                        plt.plot([energy[0], energy[0]], [0, 1e5], color = c[key], ls='--', label=key)
-                    
-                    else:
-                        # Find index of the minimum energy
-                        min_energy_idx = np.argmin(energy)
-                        min_energy = energy[min_energy_idx]
-                        corresponding_amp = amp[min_energy_idx]
-
-                        if min_energy > 1e-3:
-                            # Plot vertical line at the minimum energy
-                            plt.plot([min_energy, min_energy], [0, corresponding_amp], color = c[key])
-                            plt.loglog(energy, amp, label=flux.name, color=c[key])
-
-                        else:
-                            plt.loglog(energy, amp, label=flux.name, color=c[key])
-
-        #plt.xlim(1e-3, 10000)
-        #plt.ylim(1e-7, 1e4)
-        plt.xlabel('Neutrino Energy [MeV]', fontsize = 14)
-        plt.legend(fontsize = 8, loc = 'upper right')
-        plt.ylabel('Flux [1/cm$^2$/s/MeV]', fontsize = 14)
-        plt.title('Neutrino Flux', fontsize = 20)
-        plt.savefig('outputs/NuFluxes.png')
-        plt.show()
-        print('complete')
-
+ 
     def test_ER_methods(self):
         xe_target = Target("Xe", 131.29, 54)
 
@@ -316,7 +363,7 @@ class TestNeutrino(unittest.TestCase):
 
         print(f"Overall Flux: {overall_flux}, All Flux: {nurate.spectrum().get_total_flux_cm2s()}")
 
-"""    
+ 
     def test_components_NR(self):
         plt.figure(figsize = (12,8))
         er = np.logspace(-4, 2, 1000)

@@ -81,6 +81,9 @@ class NeutrinoFlux:
 
         self.pdf_data = self.pdf_data()
 
+        if len(self.pdf_data) == 1:
+            self.mode = FluxMode.Line
+
     def add_neutrino_flavour(self, flavour: str, fractions: Union[List[float], None] = None):
         if fractions is None:
             fractions = [1.0]
@@ -127,7 +130,6 @@ class NeutrinoFlux:
 
             lookup = SolarMSWLookupTable(1e-7, 1e3, 1, 1000000) 
             production_points = DMCalcConstants.get_dmcalc_path() + "/DataBase/NeutrinoFlux/production_points/" + self.name + ".txt"
-            print(production_points)
             p_ee_vec = []
             p_emu_vec = []
             p_etau_vec = []
@@ -183,7 +185,8 @@ class NeutrinoFlux:
         with open(file, 'r') as f:
             for line in f:
                 energy, flux = map(float, line.split())
-                data.append([energy, flux])
+                data.append([energy, flux*self.scaling])
+
 
         """
         #Check it plots reasonable spectrum
@@ -212,7 +215,7 @@ class NeutrinoFlux:
             "MuonNeutrino": "mu",
             "TauNeutrino": "tau"
         }
-
+        
         # Convert full name to short form if necessary
         if flavour in full_to_short:
             flavour = full_to_short[flavour]
@@ -225,47 +228,41 @@ class NeutrinoFlux:
             # Get the abundance for the specified flavour
             # Note flux units in MeV -- convert energy in keV to MeV
             abundance = self.flavours[flavour]
+
             # Handle line mode
-            #TODO check with Rob which ones if any are meant to be line modes 
             if self.mode == FluxMode.Line:
-                return abundance[0] * func(self.pdf_data[0][0]* 1e3)
+                return abundance[0] * func(self.pdf_data[0][0])
 
             # Compute the total weighted average for non-line mode
             total = 0
-            prev_val = func(self.pdf_data[0][0]* 1e3)
+            prev_val = func(self.pdf_data[0][0])
             
 
             for i in range(1, len(self.pdf_data)-1): 
-                val = func(self.pdf_data[i][0])* 1e3 * abundance[i]
+                val = func(self.pdf_data[i][0]) * abundance[i]
                 #print(val)
                 total += 0.5 * (val + prev_val) * abundance[i] * (self.pdf_data[i][0] - self.pdf_data[i - 1][0]) * 1e3
                 #print(total)
                 prev_val = val
 
-        return total #in MeV units
+        return total  #in MeV units
 
     
-    def get_total_flux(self, E_min: float = None, E_max: float = None) -> float:
+    def get_total_flux(self) -> float:
         """
         Compute the total flux by integrating flux vs. energy.
         :return: Total flux (integrated over energy).
         """
         data = np.array(self.pdf_data)
-
-        # Apply integration limits if specified
-        if E_min is not None:
-            data = data[data[:, 0] >= E_min] 
-        if E_max is not None:
-            data = data[data[:, 0] <= E_max]  
-
-        # Check if there is only one data point, and handle that case
+        #print(data, 'data2')
         if len(data) == 1:
-            flux = data[:, 0] * 1e-3 * data[:, 1]*1e3  # Energy in keV to MeV
+            flux = data[:, 0] * data[:, 1]
             flux = flux[0]
         else:
-            # Assuming first column is energy (keV) and second column is flux (per s per cm^2 per MeV)
-            flux = simps(x=data[:, 0] * 1e-3, y=data[:, 1]*1e3)  # Convert energy to MeV for integration
+            #assuming first column (energy) in keV and second (flux) in per s per cm^2 per MeV
+            flux = simps(x=data[:, 0], y=data[:, 1]) #NOTE this might be off by a factor
 
-        # Return total flux in units of /s/cm^2
-        return flux
+        # Result is in /s/cm^2
+        #TODO what am i actually meant to get here
+        return flux # Numerical integration using Simpson's rule
 
