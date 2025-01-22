@@ -16,11 +16,11 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         self.fCoupling_v_proton = 1  # Vector coupling to proton (radiative corrections)
         self.fCoupling_v_neutron = 1  # Vector coupling to neutron (radiative corrections)
 
-    def dSigmadEr_cm2_keV(self, E_recoil: float, E_neutrino: float, nucleus, flavour) -> float:
+    def dSigmadEr_cm2_keV(self, E_recoil_keV: float, E_neutrino_MeV: float, nucleus, flavour) -> float:
         """
         Calculate the cross-section.
-        :param E_recoil: nuclear recoil energy in keV
-        :param E_neutrino: incident neutrino energy in keV
+        :param E_recoil_keV: nuclear recoil energy in keV
+        :param E_neutrino_MeV: incident neutrino energy in MeV
         :param nucleus: target nucleus
         :return: value of the cross-section in cm^2.keV^-1
         """
@@ -30,31 +30,25 @@ class NeutrinoCrossSectionCoherentNR(VNeutrinoCrossSection):
         #print(E_recoil, E_neutrino)
         A_nuc = nucleus.get_A()  # mass number
         Z_nuc = nucleus.get_Z()  # atomic number
-        m_nuc = nucleus.get_m_GeV() #in GeV still * 1e6  # actual mass in keV
+        m_nuc_keV = nucleus.get_m_GeV() * 1e6  # keV
 
         Gf = DMCalcConstants.Gf  # Fermi constant in keV^-2
 
         # Ensure helm_form_factor_squared returns a dimensionless result
-        Fsquared = helm_form_factor(E_recoil, A_nuc, m_nuc) #Er_keV, A, mass_GeV
+        Fsquared = helm_form_factor(E_recoil_keV, A_nuc, nucleus.get_m_GeV()) #Er_keV, A, mass_GeV
         #print(Fsquared, 'fsq')
 
         # Temporary debug fix for Fsquared
         if Fsquared is None or Fsquared <= 0:  # Handle any invalid values
             Fsquared = 0  # Default value (fix this function later)
 
-        # Differential cross-section calculation in keV^-1 cm^2
-        dxsecdEr = ((Gf**2 * m_nuc) / (8 * np.pi)) * (
-            ((self.fCoupling_v_proton * Z_nuc) + 
-            (self.fCoupling_v_neutron * (A_nuc - Z_nuc)))**2
-        ) * (1 + (1 - E_recoil / E_neutrino)**2 - ((m_nuc * E_recoil) / (E_neutrino**2))) * Fsquared
-        
-        # Convert to cm^2/keV
-        dxsecdEr *= 3.88e-16 
-        # Ensure the result is non-negative
-        dxsecdEr = np.fmax(dxsecdEr, 0)
+        x = E_recoil_keV / (E_neutrino_MeV * 1e3)
+        y = m_nuc_keV / (E_neutrino_MeV * 1e3)
+        dxsecdEr = Gf * Gf / (2. * np.pi) * (self.fCoupling_v_proton * Z_nuc + self.fCoupling_v_neutron * (A_nuc - Z_nuc)) * (self.fCoupling_v_proton * Z_nuc + self.fCoupling_v_neutron * (A_nuc - Z_nuc)) * m_nuc_keV * (1 + (1 - x) * (1 - x) - x * y) * Fsquared
 
-        # Ensure non-negative values
-        return np.fmax(dxsecdEr, 0)
+        dxsecdEr = dxsecdEr * 3.88e-16 # cm^2/keV
+
+        return dxsecdEr
 
 
     def set_couplings(self, neutrinoFlavour: str):

@@ -77,47 +77,6 @@ class NeutrinoRate:
         self.set_interaction_type(interaction_type)
         self.set_required_fluxes(required_fluxes)
 
-    def spectrum(self):
-        flux_map: Dict[str, List[str]] = {
-            "DSN": ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3"],
-            "Atmospheric": ["AtmNu_e", "AtmNu_ebar", "AtmNu_mu", "AtmNu_mubar"],
-            "8B": ["8B"],
-            "HEP": ["hep"],
-            "PEP": ["pep"],
-            "PP": ["pp"],
-            "CNO": ["13N", "15O", "17F"],
-            "7Be": ["7Be_384.3keV", "7Be_861.3keV"],
-        }
-
-        scaling = {
-                "pp": {"flux": 5.98e10, "flavour": "e", "source": "solar_matter_sun"},
-                "pep": {"flux": 1.44e8, "flavour": "e", "source": "solar_matter_sun"},
-                "hep": {"flux": 7.98e3, "flavour": "e", "source": "solar_matter_sun"},
-                "7Be_384.3keV": {"flux": 6.44e8, "flavour": "e", "source": "solar_matter_sun"},
-                "7Be_861.3keV": {"flux": 4.35e9, "flavour": "e", "source": "solar_matter_sun"},
-                "8B": {"flux": 5.25e6, "flavour": "e", "source": "solar_matter_sun"},
-                "13N": {"flux": 2.78e8, "flavour": "e", "source": "solar_matter_sun"},
-                "15O": {"flux": 2.05e8, "flavour": "e", "source": "solar_matter_sun"},
-                "17F": {"flux": 5.29e6, "flavour": "e", "source": "solar_matter_sun"},
-                "dsnbflux_8": {"flux": 17.0, "flavour": "mu", "source": "none"},
-                "dsnbflux_5": {"flux": 27.2, "flavour": "e_anti", "source": "none"},
-                "dsnbflux_3": {"flux": 45.4, "flavour": "e", "source": "none"},
-                "AtmNu_e": {"flux": 1.0, "flavour": "e", "source": "none"},
-                "AtmNu_ebar": {"flux": 1.0, "flavour": "e_anti", "source": "none"},
-                "AtmNu_mu": {"flux": 1.0, "flavour": "mu", "source": "none"},
-                "AtmNu_mubar": {"flux": 1.0, "flavour": "mu_anti", "source": "none"}
-            }
-
-
-        for component in flux_map.keys():
-            required_neutrino_fluxes = flux_map.get(component, [])
-            for key in required_neutrino_fluxes:
-                flux = NeutrinoFlux(name=key, scaling=scaling[key]['flux'], neutrino_flavour=[scaling[key]['flavour']], oscillation_mode=scaling[key]['source'],
-                                    # "solar_vac_sun"
-                                        ) 
-                self.f_flux.add_component(flux)
-        return self.f_flux
-
     def set_required_fluxes(self, component: str):
         flux_map: Dict[str, List[str]] = {
             "DSN": ["dsnbflux_8", "dsnbflux_5", "dsnbflux_3"],
@@ -204,22 +163,15 @@ class NeutrinoRate:
 
                 # averages cross section over neutrino flux, weighted based on flavour
 
-                def rate_function(E_nu_keV):
-                    #print(E_nu_keV, E_nu_min, 'rate func ')
-                    #only works if I scale E_nu_keV * 1e3
-                    if E_nu_keV*1e3 > E_nu_min:
-                        #print('succes')
-                        return self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour)
+                def rate_function(E_nu_MeV):
+                    if (E_nu_MeV * 1e3) > E_nu_min:
+                        return self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_MeV, nucleus, flavour)
                     else:
                         return 0
 
-                #rate_function = lambda E_nu_keV: self.f_cross_section.dSigmadEr_cm2_keV(recoil_keV, E_nu_keV, nucleus, flavour) if E_nu_keV > E_nu_min else 0
-
-                # keV/cm^2 [* conversion to keV *] weighted average cross section in cm2 keV
-                #TODO check with Rob if i am meant to x by integrated total flux for each 
-                dR_dE_r = self.f_flux.get_total_flux_cm2s()* max(0, self.f_flux.flavour_average(rate_function, flavour)) 
-                dR_dE_r *= ((5.61e35 * 3.154e7)/ (m_nuc * 3.829295650095628e-26)) #should give rate in per year per tonne???
-                #TODO check with Rob why is this in your code? what does 5.61e35 do? 
+                dR_dE_r = max(0, self.f_flux.flavour_average(rate_function, flavour))
+                dR_dE_r *= 5.61e35 / m_nuc
+                dR_dE_r = dR_dE_r * 365. * 24. * 3600. # evts/keV/tonne/yr
                 rate_contrib += nucleus.mass_frac * dR_dE_r
             
             rate += rate_contrib

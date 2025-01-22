@@ -231,21 +231,19 @@ class NeutrinoFlux:
 
             # Handle line mode
             if self.mode == FluxMode.Line:
-                return abundance[0] * func(self.pdf_data[0][0])
+                return self.pdf_data[0][1] * func(self.pdf_data[0][0]) * abundance[0]
 
             # Compute the total weighted average for non-line mode
             total = 0
-            prev_val = func(self.pdf_data[0][0])
-            
 
             for i in range(1, len(self.pdf_data)-1): 
-                val = func(self.pdf_data[i][0]) * abundance[i]
-                #print(val)
-                total += 0.5 * (val + prev_val) * abundance[i] * (self.pdf_data[i][0] - self.pdf_data[i - 1][0]) * 1e3
-                #print(total)
-                prev_val = val
+                E_nu_Mev = 0.5 * (self.pdf_data[i][0] + self.pdf_data[i + 1][0])
+                dE_nu_MeV = self.pdf_data[i + 1][0] - self.pdf_data[i][0]
+                flux_nu = 0.5 * (self.pdf_data[i][1] + self.pdf_data[i + 1][1])
 
-        return total  #in MeV units
+                total += flux_nu * func(E_nu_Mev) * abundance[i] * dE_nu_MeV
+
+        return total  # evts/keV/atom/sec
 
     
     def get_total_flux(self) -> float:
