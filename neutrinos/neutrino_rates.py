@@ -10,8 +10,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import simpson as simps
 
-
-
 @dataclass
 class Target():
     AMU_TO_GEV = 0.931494
@@ -160,6 +158,7 @@ class NeutrinoRate:
     
                 elif self.f_interaction_type in {InteractionType.EW_FREE_ELECTRON, InteractionType.EW_STEPPING, InteractionType.EW_RRPA}:
                     E_nu_min = 0.5 * (recoil_keV + math.sqrt(recoil_keV * (recoil_keV + 2 * m_e)))
+                    
 
                 # averages cross section over neutrino flux, weighted based on flavour
 
@@ -177,3 +176,5 @@ class NeutrinoRate:
             rate += rate_contrib
 
         return rate
+    
+    

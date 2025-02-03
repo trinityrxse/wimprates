@@ -3,7 +3,6 @@ from enum import Enum, auto
 from collections import defaultdict
 from functools import partial
 from typing import Callable, Dict, List, Tuple, Union
-import numericalunits as nu
 from lookup_solar_MSW_table import SolarMSWLookupTable
 import os
 from constants import *

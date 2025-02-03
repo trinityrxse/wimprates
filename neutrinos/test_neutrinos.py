@@ -7,6 +7,49 @@ import pickle as pkl
 
 
 class TestNeutrino(unittest.TestCase):
+    
+
+    def test_components_ER(self):
+            plt.figure(figsize = (12,8))
+            er = np.logspace(-1, 5, 1000)
+
+            #with open('8Bdata.pkl', 'rb') as file:
+            #    data = pkl.load(file)
+
+            xe_target = Target("Xe", 131.29, 54)
+
+            # Define interaction type (e.g., COHERENT)
+            interaction_type = InteractionType.EW_STEPPING
+
+            # Required flux component (e.g., "8B" neutrinos from the sun)
+            required_fluxes =  "DSN", "Atmospheric", "8B", "HEP", "PP", "PEP", "CNO", "7Be"
+
+            # Initialise the neutrino rate calculation for xe target
+            nurate = NeutrinoRate(required_fluxes, interaction_type, xe_target)
+
+            fig1, ax1 = plt.subplots(figsize=(10, 6))  
+            for name in required_fluxes:
+                nurate.set_required_fluxes(name)
+                rates = []
+
+                for e in er:
+                    rate = nurate.get_rate(e)
+                    rates.append(rate)
+
+                if name != 'All':
+                    ax1.loglog(er, rates, label=name)
+
+            ax1.set_xlabel('Recoil Energy [keV]', fontsize=16)
+            ax1.set_ylabel('Rate [Events / ton / year / keV]', fontsize=16)
+            ax1.set_title('Neutrino Recoil Rates (ER)', fontsize=20)
+            ax1.grid(which='both', linestyle='--')
+            ax1.legend(fontsize=12)
+            fig1.tight_layout()
+            fig1.savefig("outputs/ER_spectrum_rates.png")
+
+            plt.show()
+
+"""
     def test_flux(self):
 
          # Required flux component (e.g., "8B" neutrinos from the sun)
@@ -110,7 +153,7 @@ class TestNeutrino(unittest.TestCase):
 
 
                     if len(energy) == 1:
-                        plt.plot([energy[0], energy[0]], [0, 1e5], color = c[key], ls='--', label=key)
+                        plt.plot([energy[0], energy[0]], [0, 1e12], color = c[key], ls='--', label=key)
                     
                     else:
                         # Find index of the minimum energy
@@ -126,8 +169,8 @@ class TestNeutrino(unittest.TestCase):
                         else:
                             plt.loglog(energy, amp, label=flux.name, color=c[key])
 
-        plt.xlim(1, 1e3)
-        plt.ylim(1e-4, 1e13)
+        plt.xlim(1e-3, 1e3)
+        plt.ylim(1e-3, 1e12)
         plt.xlabel('Neutrino Energy [MeV]', fontsize = 14)
         plt.legend(fontsize = 8, loc = 'upper right')
         plt.ylabel('Flux [1/cm$^2$/s/MeV]', fontsize = 14)
@@ -138,7 +181,7 @@ class TestNeutrino(unittest.TestCase):
 
     def test_components_NR(self):
         plt.figure(figsize = (12,8))
-        er = np.logspace(-3, 2, 1000)
+        er = np.logspace(-3, 2, 10)
 
         #with open('8Bdata.pkl', 'rb') as file:
         #    data = pkl.load(file)
@@ -172,11 +215,11 @@ class TestNeutrino(unittest.TestCase):
         ax1.grid(which='both', linestyle='--')
         ax1.legend(fontsize=12)
         fig1.tight_layout()
-        fig1.savefig("outputs/NR_spectrum_rates.png")
+        #fig1.savefig("outputs/NR_spectrum_rates.png")
 
         plt.show()
 
-"""
+
  
     def test_ER_methods(self):
         xe_target = Target("Xe", 131.29, 54)

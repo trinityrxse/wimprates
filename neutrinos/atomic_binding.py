@@ -31,20 +31,20 @@ class AtomicBinding:
         self.fScaleFactor_muTauType: List[float] = []
 
         if is_rrpa and atomic_number == 54:
-            scale_factor_eType = f"{DMCalcConstants.get_dmcalc_path()}/DataBase/NeutrinoEW_RRPA/Xe/Xe_eType.txt"
+            scale_factor_eType = f"{DMCalcConstants.get_dmcalc_path()}/DataBase/NeutrinoEW_RRPA/Xe/Xe_eType.txt" 
             scale_factor_muTauType = f"{DMCalcConstants.get_dmcalc_path()}/DataBase/NeutrinoEW_RRPA/Xe/Xe_muTauType.txt"
-
+            #TODO check units for this
             try:
                 with open(scale_factor_eType, 'r') as file_eType, open(scale_factor_muTauType, 'r') as file_muTauType:
                     self.fExist = True
                     
                     for line in file_eType:
                         energy, scaling = map(float, line.split())
-                        self.fEnergies_eType.append(energy)
+                        self.fEnergies_eType.append(energy) #to keV ?
                         self.fScaleFactor_eType.append(scaling)
                     for line in file_muTauType:
                         energy, scaling = map(float, line.split())
-                        self.fEnergies_muTauType.append(energy)
+                        self.fEnergies_muTauType.append(energy) #to keV ?
                         self.fScaleFactor_muTauType.append(scaling)
             
 
@@ -77,18 +77,20 @@ class AtomicBinding:
         atom_shell_bes = shells.get_shell_BEs()
         atom_shell_occupation = shells.get_shell_occupation()
 
-        k_shell_energy = 0.001 * atom_shell_bes[0]  # Convert to keV
+        k_shell_energy =  atom_shell_bes[0]  # Convert to keV
+        #print(k_shell_energy, 'shell e')
+        #print(recoil_keV, 'recoil e') #TODO run ew rrpa 
 
-        if recoil_keV >= k_shell_energy:
+        if recoil_keV >= k_shell_energy: #
             n_scattered_elec = atom_no_elec
         else:
             for j in range(atom_number_of_shells):
                 shell_occupancy = atom_shell_occupation[j]
-                binding_energy = 0.001 * atom_shell_bes[j]  # Convert to keV
+                binding_energy = atom_shell_bes[j]  # Convert to keV
 
                 if recoil_keV >= binding_energy:
                     n_scattered_elec += shell_occupancy
-
+        #print(n_scattered_elec)
         return n_scattered_elec
 
     def get_rrpa_scaling(self, neutrino_flavour: NeutrinoFlavour, recoil_keV: float) -> float:
@@ -105,9 +107,11 @@ class AtomicBinding:
         rrpa_factor = 1.0  # Default scaling factor
 
         if self.fExist:
+            #print('exist')
 
             if neutrino_flavour == 'e':
                 energies, scale_factors = self.fEnergies_eType, self.fScaleFactor_eType
+                #print(energies[0], 'en')
             elif neutrino_flavour in ('mu', 'tau'):
                 energies, scale_factors = self.fEnergies_muTauType, self.fScaleFactor_muTauType
             else:
@@ -155,11 +159,3 @@ class AtomicShells:
     def get_shell_occupation(self):
         return self.fShellOccupation
 
-# Example usage
-if __name__ == "__main__":
-    binding = AtomicBinding(is_rrpa=True, atomic_number=54)
-    active_electrons = binding.active_electrons_stepping(.001)  # Example recoil energy in keV
-    scaling = binding.get_rrpa_scaling("ElectronNeutrino", .001)
-
-    print(f"Active Electrons: {active_electrons}")
-    print(f"RRPA Scaling Factor: {scaling}")
